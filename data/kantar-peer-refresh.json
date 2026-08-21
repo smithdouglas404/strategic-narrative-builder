@@ -1,0 +1,186 @@
+{
+  "profiles": [
+    {
+      "company": "Kantar Group Limited",
+      "ticker": "",
+      "name": "Kantar Group Limited",
+      "industry": "Market research",
+      "primaryIndustry": "Market research",
+      "subSector": "Market research and insights",
+      "peerGroup": "market-research",
+      "validationLinks": [
+        {
+          "label": "Yahoo Finance",
+          "url": "https://finance.yahoo.com/lookup?s=Kantar+Group+Limited"
+        },
+        {
+          "label": "Google Finance validation",
+          "url": "https://www.google.com/search?q=Kantar+Group+Limited+EBITDA+total+assets+free+cash+flow+employees+annual+report"
+        }
+      ],
+      "source": ""
+    },
+    {
+      "company": "NIQ Global Intelligence plc",
+      "name": "NIQ Global Intelligence plc",
+      "ticker": "NIQ",
+      "industry": "Consumer intelligence and market measurement",
+      "primaryIndustry": "Consumer intelligence and market measurement",
+      "subSector": "Consumer intelligence, analytics and market measurement",
+      "peerGroup": "market-research",
+      "peerReason": "Verified listed comparator in the target company's prominent operating market.",
+      "sourceSnippets": [
+        {
+          "source": "Official filing / investor relations",
+          "label": "NIQ 2025 Form 10-K",
+          "snippet": "NIQ Global Intelligence plc is used as a listed market research comparator; financial fields are refreshed separately from public evidence.",
+          "url": "https://www.sec.gov/Archives/edgar/data/2054696/000162828026012572/niq-20251231.htm"
+        }
+      ],
+      "validationLinks": [
+        {
+          "label": "Yahoo Finance",
+          "url": "https://finance.yahoo.com/quote/NIQ/financials"
+        },
+        {
+          "label": "Google Finance validation",
+          "url": "https://www.google.com/search?q=NIQ+Global+Intelligence+plc+EBITDA+total+assets+free+cash+flow+employees+annual+report"
+        }
+      ],
+      "source": ""
+    },
+    {
+      "company": "Ipsos SA",
+      "name": "Ipsos SA",
+      "ticker": "IPS.PA",
+      "industry": "Market research",
+      "primaryIndustry": "Market research",
+      "subSector": "Global market research and public opinion",
+      "peerGroup": "market-research",
+      "peerReason": "Verified listed comparator in the target company's prominent operating market.",
+      "sourceSnippets": [
+        {
+          "source": "Official filing / investor relations",
+          "label": "Ipsos investor relations",
+          "snippet": "Ipsos SA is used as a listed market research comparator; financial fields are refreshed separately from public evidence.",
+          "url": "https://www.ipsos.com/en/investors-overview"
+        }
+      ],
+      "validationLinks": [
+        {
+          "label": "Yahoo Finance",
+          "url": "https://finance.yahoo.com/quote/IPS.PA/financials"
+        },
+        {
+          "label": "Google Finance validation",
+          "url": "https://www.google.com/search?q=Ipsos+SA+EBITDA+total+assets+free+cash+flow+employees+annual+report"
+        }
+      ],
+      "source": ""
+    },
+    {
+      "company": "YouGov plc",
+      "name": "YouGov plc",
+      "ticker": "YOU.L",
+      "industry": "Market research and data analytics",
+      "primaryIndustry": "Market research and data analytics",
+      "subSector": "Online market research, opinion data and analytics",
+      "peerGroup": "market-research",
+      "peerReason": "Verified listed comparator in the target company's prominent operating market.",
+      "sourceSnippets": [
+        {
+          "source": "Official filing / investor relations",
+          "label": "YouGov financial reports",
+          "snippet": "YouGov plc is used as a listed market research comparator; financial fields are refreshed separately from public evidence.",
+          "url": "https://corporate.yougov.com/investors/financial-reports/"
+        }
+      ],
+      "validationLinks": [
+        {
+          "label": "Yahoo Finance",
+          "url": "https://finance.yahoo.com/quote/YOU.L/financials"
+        },
+        {
+          "label": "Google Finance validation",
+          "url": "https://www.google.com/search?q=YouGov+plc+EBITDA+total+assets+free+cash+flow+employees+annual+report"
+        }
+      ],
+      "source": ""
+    },
+    {
+      "company": "INTAGE HOLDINGS Inc.",
+      "name": "INTAGE HOLDINGS Inc.",
+      "ticker": "4326.T",
+      "industry": "Market research",
+      "primaryIndustry": "Market research",
+      "subSector": "Consumer panels, marketing intelligence and healthcare research",
+      "peerGroup": "market-research",
+      "peerReason": "Verified listed comparator in the target company's prominent operating market.",
+      "sourceSnippets": [
+        {
+          "source": "Official filing / investor relations",
+          "label": "INTAGE Group Report 2025",
+          "snippet": "INTAGE HOLDINGS Inc. is used as a listed market research comparator; financial fields are refreshed separately from public evidence.",
+          "url": "https://www.intageholdings.co.jp/english/ir/library/ar/"
+        }
+      ],
+      "validationLinks": [
+        {
+          "label": "Yahoo Finance",
+          "url": "https://finance.yahoo.com/quote/4326.T/financials"
+        },
+        {
+          "label": "Google Finance validation",
+          "url": "https://www.google.com/search?q=INTAGE+HOLDINGS+Inc.+EBITDA+total+assets+free+cash+flow+employees+annual+report"
+        }
+      ],
+      "source": ""
+    },
+    {
+      "company": "comScore, Inc.",
+      "name": "comScore, Inc.",
+      "ticker": "SCOR",
+      "industry": "Audience measurement and market analytics",
+      "primaryIndustry": "Audience measurement and market analytics",
+      "subSector": "Cross-platform media measurement and audience analytics",
+      "peerGroup": "market-research",
+      "peerReason": "Verified listed comparator in the target company's prominent operating market.",
+      "sourceSnippets": [
+        {
+          "source": "Official filing / investor relations",
+          "label": "comScore investor relations",
+          "snippet": "comScore, Inc. is used as a listed market research comparator; financial fields are refreshed separately from public evidence.",
+          "url": "https://ir.comscore.com/financial-information/annual-reports-and-proxy-statements"
+        }
+      ],
+      "validationLinks": [
+        {
+          "label": "Yahoo Finance",
+          "url": "https://finance.yahoo.com/quote/SCOR/financials"
+        },
+        {
+          "label": "Google Finance validation",
+          "url": "https://www.google.com/search?q=comScore%2C+Inc.+EBITDA+total+assets+free+cash+flow+employees+annual+report"
+        }
+      ],
+      "source": ""
+    }
+  ],
+  "researchStats": {
+    "discovered": 5,
+    "fieldQueriesCompleted": 0,
+    "fieldQueriesAttempted": 109,
+    "fieldQueryErrors": [
+      "Perplexity connection error: [WinError 10061] No connection could be made because the target machine actively refused it"
+    ],
+    "discoveryError": ""
+  },
+  "sourcesChecked": [
+    "Perplexity peer discovery",
+    "Perplexity parallel field research",
+    "Yahoo Finance structured financials",
+    "Google Finance validation query",
+    "Local validated peer profile"
+  ],
+  "message": "Prepared 6 validated company profiles, but none of 109 missing-field queries returned usable evidence. Provider response: Perplexity connection error: [WinError 10061] No connection could be made because the target machine actively refused it"
+}

@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8787:8787"
+    environment:
+      - PORT=8787
+      - HOST=0.0.0.0
+      - SNB_BACKGROUND_REFRESH_ENABLED=1
+      - SNB_VALUE_CASE_REFRESH_TTL_SECONDS=86400
+      - SNB_BACKGROUND_REFRESH_INTERVAL_SECONDS=3600
+      - SNB_MAGIC_LINK_TTL_MINUTES=15
+      - SNB_SESSION_TTL_DAYS=30
+      - SNB_MAGIC_LINK_DEV_MODE=0
+    volumes:
+      # Persist database across container restarts
+      - app_data:/app/data
+      # Persist uploaded files
+      - app_uploads:/app/storage/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8787/').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    # Develop mode for hot reload (optional - uncomment to enable)
+    # develop:
+    #   watch:
+    #     - action: sync
+    #       path: .
+    #       target: /app
+    #       ignore:
+    #         - data/
+    #         - storage/
+
+volumes:
+  app_data:
+    driver: local
+  app_uploads:
+    driver: local
+
+networks:
+  default:
+    name: snb-network
+    driver: bridge

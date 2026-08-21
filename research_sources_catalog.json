@@ -1,0 +1,560 @@
+[
+  {
+    "industry": "Consumer Goods & Retail",
+    "name": "NielsenIQ (NIQ)",
+    "specialty": "POS data, retail measurement",
+    "bestFor": "Global retail sales tracking, consumer panels",
+    "category": "Industry Research",
+    "baseUrl": "https://nielseniq.com",
+    "priorityOrder": 11
+  },
+  {
+    "industry": "Energy & Commodities",
+    "name": "Wood Mackenzie",
+    "specialty": "Power, renewables, oil & gas",
+    "bestFor": "Energy transition strategy and investment decisions",
+    "category": "Industry Research",
+    "baseUrl": "https://www.woodmac.com",
+    "priorityOrder": 11
+  },
+  {
+    "industry": "Financial Services",
+    "name": "JPMorgan Research",
+    "specialty": "Macro, equities, fixed income",
+    "bestFor": "#1 overall sell-side research provider",
+    "category": "Industry Research",
+    "baseUrl": "https://www.jpmorgan.com/insights",
+    "priorityOrder": 11
+  },
+  {
+    "industry": "Healthcare & Life Sciences",
+    "name": "IQVIA",
+    "specialty": "Real-world evidence, pharma analytics",
+    "bestFor": "Healthcare and life sciences data (~$5.4B research revenue)",
+    "category": "Industry Research",
+    "baseUrl": "https://www.iqvia.com",
+    "priorityOrder": 11
+  },
+  {
+    "industry": "Media & Advertising",
+    "name": "Comscore",
+    "specialty": "Audience measurement, digital media",
+    "bestFor": "Cross-platform media measurement",
+    "category": "Industry Research",
+    "baseUrl": "https://www.comscore.com",
+    "priorityOrder": 11
+  },
+  {
+    "industry": "Consumer Goods & Retail",
+    "name": "Kantar",
+    "specialty": "Brand tracking, Worldpanel",
+    "bestFor": "Brand equity and consumer loyalty (~$3.7B research revenue)",
+    "category": "Industry Research",
+    "baseUrl": "https://www.kantar.com",
+    "priorityOrder": 12
+  },
+  {
+    "industry": "Energy & Commodities",
+    "name": "BloombergNEF",
+    "specialty": "Clean energy, EV, hydrogen",
+    "bestFor": "Energy transition investment tracking",
+    "category": "Industry Research",
+    "baseUrl": "https://about.bnef.com",
+    "priorityOrder": 12
+  },
+  {
+    "industry": "Financial Services",
+    "name": "BofA Securities",
+    "specialty": "Equities, thematic research",
+    "bestFor": "First-team positions in most categories",
+    "category": "Industry Research",
+    "baseUrl": "https://business.bofa.com",
+    "priorityOrder": 12
+  },
+  {
+    "industry": "Healthcare & Life Sciences",
+    "name": "Clarivate",
+    "specialty": "Drug pipelines, clinical data",
+    "bestFor": "Life sciences intelligence and IP analytics",
+    "category": "Industry Research",
+    "baseUrl": "https://clarivate.com",
+    "priorityOrder": 12
+  },
+  {
+    "industry": "Media & Advertising",
+    "name": "Ipsos MediaCT",
+    "specialty": "Ad effectiveness, social research",
+    "bestFor": "Multi-country media & advertising surveys",
+    "category": "Industry Research",
+    "baseUrl": "https://www.ipsos.com",
+    "priorityOrder": 12
+  },
+  {
+    "industry": "Consumer Goods & Retail",
+    "name": "Circana (IRI + NPD)",
+    "specialty": "Retail scanner + foodservice data",
+    "bestFor": "Integrated retail & foodservice performance",
+    "category": "Industry Research",
+    "baseUrl": "https://www.circana.com",
+    "priorityOrder": 13
+  },
+  {
+    "industry": "Energy & Commodities",
+    "name": "IHS Markit (S&P Global)",
+    "specialty": "Energy, automotive, financial data",
+    "bestFor": "Commodity markets and macro energy data",
+    "category": "Industry Research",
+    "baseUrl": "https://www.spglobal.com",
+    "priorityOrder": 13
+  },
+  {
+    "industry": "Financial Services",
+    "name": "Morgan Stanley",
+    "specialty": "Cross-asset, sector analysis",
+    "bestFor": "Global macro + sector fundamentals",
+    "category": "Industry Research",
+    "baseUrl": "https://www.morganstanley.com/ideas",
+    "priorityOrder": 13
+  },
+  {
+    "industry": "Healthcare & Life Sciences",
+    "name": "Decision Resources Group",
+    "specialty": "Pharma market access",
+    "bestFor": "Payer and outcomes research",
+    "category": "Industry Research",
+    "baseUrl": "https://decisionresourcesgroup.com",
+    "priorityOrder": 13
+  },
+  {
+    "industry": "Media & Advertising",
+    "name": "Dynata",
+    "specialty": "Panel data, survey sampling",
+    "bestFor": "Large-scale quantitative fieldwork",
+    "category": "Industry Research",
+    "baseUrl": "https://www.dynata.com",
+    "priorityOrder": 13
+  },
+  {
+    "industry": "Consumer Goods & Retail",
+    "name": "Numerator",
+    "specialty": "Receipt-based shopper panels",
+    "bestFor": "Omnichannel purchase behavior",
+    "category": "Industry Research",
+    "baseUrl": "https://www.numerator.com",
+    "priorityOrder": 14
+  },
+  {
+    "industry": "Energy & Commodities",
+    "name": "Frost & Sullivan",
+    "specialty": "Cross-industry growth strategies",
+    "bestFor": "Innovation and growth opportunity research",
+    "category": "Industry Research",
+    "baseUrl": "https://www.frost.com",
+    "priorityOrder": 14
+  },
+  {
+    "industry": "Financial Services",
+    "name": "Evercore ISI",
+    "specialty": "Commission-weighted equity research",
+    "bestFor": "Weighted leader in US analyst rankings",
+    "category": "Industry Research",
+    "baseUrl": "https://www.evercore.com",
+    "priorityOrder": 14
+  },
+  {
+    "industry": "Healthcare & Life Sciences",
+    "name": "Kantar Health",
+    "specialty": "Health consumer insights",
+    "bestFor": "Patient and HCP research",
+    "category": "Industry Research",
+    "baseUrl": "https://www.kantar.com",
+    "priorityOrder": 14
+  },
+  {
+    "industry": "Media & Advertising",
+    "name": "YouGov",
+    "specialty": "Online panels, brand tracking",
+    "bestFor": "Fast public opinion and brand perception data",
+    "category": "Industry Research",
+    "baseUrl": "https://yougov.co.uk",
+    "priorityOrder": 14
+  },
+  {
+    "industry": "Consumer Goods & Retail",
+    "name": "Mintel",
+    "specialty": "Trend reports, product tracking",
+    "bestFor": "Category analysis and consumer research",
+    "category": "Industry Research",
+    "baseUrl": "https://www.mintel.com",
+    "priorityOrder": 15
+  },
+  {
+    "industry": "Financial Services",
+    "name": "Jefferies",
+    "specialty": "US equities",
+    "bestFor": "Top 5 in Extel All-America rankings",
+    "category": "Industry Research",
+    "baseUrl": "https://www.jefferies.com",
+    "priorityOrder": 15
+  },
+  {
+    "industry": "Healthcare & Life Sciences",
+    "name": "NielsenIQ Health",
+    "specialty": "OTC/consumer health tracking",
+    "bestFor": "Retail health product performance",
+    "category": "Industry Research",
+    "baseUrl": "https://nielseniq.com",
+    "priorityOrder": 15
+  },
+  {
+    "industry": "Consumer Goods & Retail",
+    "name": "dunnhumby",
+    "specialty": "Customer data science",
+    "bestFor": "Loyalty analytics for grocery/mass retail",
+    "category": "Industry Research",
+    "baseUrl": "https://www.bing.com/search?q=dunnhumby+research",
+    "priorityOrder": 16
+  },
+  {
+    "industry": "Financial Services",
+    "name": "Greenwich Associates",
+    "specialty": "Financial services benchmarking",
+    "bestFor": "Institutional banking & markets insight",
+    "category": "Industry Research",
+    "baseUrl": "https://www.greenwich.com",
+    "priorityOrder": 16
+  },
+  {
+    "industry": "Consumer Goods & Retail",
+    "name": "GfK (now part of NIQ)",
+    "specialty": "Consumer tech, fast-moving retail",
+    "bestFor": "gfknewron analytics platform",
+    "category": "Industry Research",
+    "baseUrl": "https://www.bing.com/search?q=GfK+%28now+part+of+NIQ%29+research",
+    "priorityOrder": 17
+  },
+  {
+    "industry": "Financial Services",
+    "name": "GlobalData Financial Services",
+    "specialty": "FS data and competitive intel",
+    "bestFor": "Sector-level financial data",
+    "category": "Industry Research",
+    "baseUrl": "https://www.globaldata.com",
+    "priorityOrder": 17
+  },
+  {
+    "industry": "Technology & IT",
+    "name": "Gartner",
+    "specialty": "Magic Quadrant, Hype Cycle, IT advisory",
+    "bestFor": "Enterprise tech buying decisions, vendor positioning",
+    "category": "Technology & IT",
+    "baseUrl": "https://www.gartner.com",
+    "priorityOrder": 61
+  },
+  {
+    "industry": "Technology & IT",
+    "name": "IDC",
+    "specialty": "IT, cloud, AI, telecoms",
+    "bestFor": "Data-driven tech market intelligence",
+    "category": "Technology & IT",
+    "baseUrl": "https://www.idc.com",
+    "priorityOrder": 62
+  },
+  {
+    "industry": "Technology & IT",
+    "name": "Forrester",
+    "specialty": "CX, digital transformation, B2B tech",
+    "bestFor": "Technology and CX strategy guidance",
+    "category": "Technology & IT",
+    "baseUrl": "https://www.forrester.com",
+    "priorityOrder": 63
+  },
+  {
+    "industry": "Technology & IT",
+    "name": "451 Research (S&P Global)",
+    "specialty": "Cloud, cybersecurity, IT infrastructure",
+    "bestFor": "Real-time emerging tech insights",
+    "category": "Technology & IT",
+    "baseUrl": "https://www.spglobal.com/marketintelligence/en/solutions/products/451-research",
+    "priorityOrder": 64
+  },
+  {
+    "industry": "Technology & IT",
+    "name": "Everest Group",
+    "specialty": "IT outsourcing, vendor PEAK Matrix",
+    "bestFor": "Competitive benchmarking for services",
+    "category": "Technology & IT",
+    "baseUrl": "https://www.everestgrp.com",
+    "priorityOrder": 65
+  },
+  {
+    "industry": "Technology & IT",
+    "name": "TSIA",
+    "specialty": "Tech & services industry benchmarking",
+    "bestFor": "Operational maturity for tech firms",
+    "category": "Technology & IT",
+    "baseUrl": "https://www.tsia.com",
+    "priorityOrder": 66
+  },
+  {
+    "industry": "Multi-Industry",
+    "name": "Ipsos",
+    "specialty": "Social research, public affairs",
+    "bestFor": "Global multi-country surveys (~EUR2.4B revenue)",
+    "category": "Industry Research",
+    "baseUrl": "https://www.ipsos.com",
+    "priorityOrder": 71
+  },
+  {
+    "industry": "Multi-Industry",
+    "name": "Euromonitor International",
+    "specialty": "Market sizing, country-level data",
+    "bestFor": "Long-term strategic planning and forecasting",
+    "category": "Industry Research",
+    "baseUrl": "https://www.euromonitor.com",
+    "priorityOrder": 72
+  },
+  {
+    "industry": "Multi-Industry",
+    "name": "Statista",
+    "specialty": "Aggregated statistics",
+    "bestFor": "Quick cross-industry data access",
+    "category": "Industry Research",
+    "baseUrl": "https://www.statista.com",
+    "priorityOrder": 73
+  },
+  {
+    "industry": "Multi-Industry",
+    "name": "Mordor Intelligence",
+    "specialty": "Niche sector reports",
+    "bestFor": "Emerging market sizing and trend landscaping",
+    "category": "Industry Research",
+    "baseUrl": "https://www.mordorintelligence.com",
+    "priorityOrder": 74
+  },
+  {
+    "industry": "Multi-Industry",
+    "name": "NORC at U of Chicago",
+    "specialty": "Academic-grade social research",
+    "bestFor": "Rigorous policy and public opinion studies",
+    "category": "Industry Research",
+    "baseUrl": "https://www.norc.org",
+    "priorityOrder": 75
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "McKinsey & Company",
+    "specialty": "Corporate strategy, org design, digital, AI",
+    "bestFor": "MBB - Most prestigious; #1 prestige score (8.906) globally (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.mckinsey.com",
+    "priorityOrder": 91
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Boston Consulting Group (BCG)",
+    "specialty": "Strategy, AI (25% of ops), innovation, digital",
+    "bestFor": "MBB - AI-led transformation; 32 Forbes star ratings (2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.bcg.com",
+    "priorityOrder": 92
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Bain & Company",
+    "specialty": "Strategy, PE due diligence, customer-centric ops",
+    "bestFor": "MBB - #1 best overall consulting firm to work for (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.bain.com",
+    "priorityOrder": 93
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Deloitte Consulting",
+    "specialty": "Technology, AI (Deloitte Ascend), risk, ops",
+    "bestFor": "Big 4 - Most FT gold ratings (25); #1 UK ranking (FT 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.deloitte.com",
+    "priorityOrder": 94
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Accenture",
+    "specialty": "Digital, cloud, AI, tech-enabled transformation",
+    "bestFor": "Big 4 - 31 Forbes star ratings; tied #1 UK FT ranking (2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.accenture.com",
+    "priorityOrder": 95
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "PwC (Strategy&)",
+    "specialty": "Corporate strategy, M&A, digital strategy",
+    "bestFor": "Big 4 - Strategy& arm for pure strategy work; 14 FT golds",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.strategyand.pwc.com",
+    "priorityOrder": 96
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "EY-Parthenon",
+    "specialty": "Strategy, transaction advisory, AI ROI",
+    "bestFor": "Big 4 - AI value realization focus; 29 Forbes star ratings",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.ey.com/en_gl/strategy",
+    "priorityOrder": 97
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "KPMG",
+    "specialty": "Risk, deals, technology, regulatory",
+    "bestFor": "Big 4 - 6 FT gold ratings; strong in financial services",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://kpmg.com",
+    "priorityOrder": 98
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Oliver Wyman",
+    "specialty": "Financial services, risk, strategy",
+    "bestFor": "Tier 2 / Elite Boutique - #3 EMEA best firm to work for (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.oliverwyman.com",
+    "priorityOrder": 99
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Roland Berger",
+    "specialty": "Industrial strategy, Europe-focused",
+    "bestFor": "Tier 2 / Elite Boutique - #2 EMEA and APAC best firm to work for (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.rolandberger.com",
+    "priorityOrder": 100
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Kearney",
+    "specialty": "Operations, supply chain, corporate strategy",
+    "bestFor": "Tier 2 / Elite Boutique - #2 APAC best firm; active in region since 1972",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.kearney.com",
+    "priorityOrder": 101
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "L.E.K. Consulting",
+    "specialty": "Corporate strategy, PE due diligence, life sciences",
+    "bestFor": "Tier 2 / Elite Boutique - Deep sector expertise; top boutique for PE DD",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.lek.com",
+    "priorityOrder": 102
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Arthur D. Little",
+    "specialty": "Technology & innovation strategy, sustainability",
+    "bestFor": "Tier 2 / Elite Boutique - Top 10 across NA, EMEA, and APAC (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.adlittle.com",
+    "priorityOrder": 103
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Simon-Kucher",
+    "specialty": "Pricing strategy, revenue growth, commercial strategy",
+    "bestFor": "Tier 2 / Elite Boutique - Global leader in pricing & monetization consulting",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.simon-kucher.com",
+    "priorityOrder": 104
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "OC&C Strategy Consultants",
+    "specialty": "Corporate & commercial strategy, retail, media",
+    "bestFor": "Tier 2 / Elite Boutique - Strong in EMEA and APAC boutique rankings (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.occstrategy.com",
+    "priorityOrder": 105
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Analysis Group",
+    "specialty": "Economic consulting, litigation, antitrust",
+    "bestFor": "Specialist / Boutique - #3 North America best firm overall (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.analysisgroup.com",
+    "priorityOrder": 106
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Alvarez & Marsal",
+    "specialty": "Performance improvement, restructuring",
+    "bestFor": "Specialist / Boutique - Execution-focused; top 10 across all regions",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.alvarezandmarsal.com",
+    "priorityOrder": 107
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "FTI Consulting",
+    "specialty": "Economic consulting, disputes, restructuring",
+    "bestFor": "Specialist / Boutique - Top 10 EMEA best firm to work for (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.fticonsulting.com",
+    "priorityOrder": 108
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "Cornerstone Research",
+    "specialty": "Economic consulting, litigation support",
+    "bestFor": "Specialist / Boutique - #6 North America best firm to work for (Vault 2026)",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.cornerstone.com",
+    "priorityOrder": 109
+  },
+  {
+    "industry": "Strategy Consulting",
+    "name": "IBM Consulting",
+    "specialty": "AI (IBM Consulting Advantage), tech strategy, ops",
+    "bestFor": "Specialist / Boutique - 26 Forbes star ratings; outcomes-driven AI delivery",
+    "category": "Strategy Consulting",
+    "baseUrl": "https://www.ibm.com/consulting",
+    "priorityOrder": 110
+  },
+  {
+    "industry": "Academic Institutions",
+    "name": "Chinese Academy of Sciences",
+    "specialty": "#1 globally (Nature Index 2026)",
+    "bestFor": "Top overall position across most subject areas",
+    "category": "Industry Research",
+    "baseUrl": "https://english.cas.cn",
+    "priorityOrder": 111
+  },
+  {
+    "industry": "Academic Institutions",
+    "name": "Harvard University",
+    "specialty": "#3 overall, #1 health & social sci.",
+    "bestFor": "Leads in health sciences and social science research",
+    "category": "Industry Research",
+    "baseUrl": "https://www.harvard.edu",
+    "priorityOrder": 112
+  },
+  {
+    "industry": "Academic Institutions",
+    "name": "Max Planck Society",
+    "specialty": "Top 5 physical & biological sciences",
+    "bestFor": "Strong in European physical and biological research",
+    "category": "Industry Research",
+    "baseUrl": "https://www.mpg.de",
+    "priorityOrder": 113
+  },
+  {
+    "industry": "Academic Institutions",
+    "name": "Helmholtz Association",
+    "specialty": "#4 earth & environmental sciences",
+    "bestFor": "Environmental and energy research",
+    "category": "Industry Research",
+    "baseUrl": "https://www.helmholtz.de",
+    "priorityOrder": 114
+  }
+]
