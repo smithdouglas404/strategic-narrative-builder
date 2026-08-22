@@ -39,13 +39,20 @@ except ImportError:  # pragma: no cover - environment-specific dependency guard
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-DATA_DIR = BASE_DIR / "data"
+# Vercel's deployment bundle is read-only. Keep mutable SQLite, upload, and
+# generated-document files under /tmp while retaining the local layout when
+# running the built-in HTTP server.
+IS_VERCEL = str(os.getenv("VERCEL", "")).strip().lower() in {"1", "true", "yes", "on"}
+RUNTIME_DIR = Path(
+    os.getenv("SNB_RUNTIME_DIR", "/tmp/strategic-narrative-builder" if IS_VERCEL else str(BASE_DIR))
+).expanduser()
+DATA_DIR = RUNTIME_DIR / "data"
 DB_PATH = DATA_DIR / "strategic_narrative.db"
 SECRET_KEY_PATH = DATA_DIR / ".snb_secret.key"
 SCHEMA_PATH = BASE_DIR / "schema.sql"
 RESEARCH_SOURCE_CATALOG_PATH = BASE_DIR / "research_sources_catalog.json"
-UPLOAD_DIR = BASE_DIR / "storage" / "uploads"
-C_LEVEL_DECK_DIR = BASE_DIR / "output" / "c_level_decks"
+UPLOAD_DIR = RUNTIME_DIR / "storage" / "uploads"
+C_LEVEL_DECK_DIR = RUNTIME_DIR / "output" / "c_level_decks"
 C_LEVEL_DECK_TEMPLATE_PATH = Path(
     os.getenv(
         "SNB_C_LEVEL_DECK_TEMPLATE",
@@ -11910,6 +11917,95 @@ class AppHandler(BaseHTTPRequestHandler):
             else:
                 fields[name] = content.decode("utf-8", errors="replace")
         return fields, file_info
+
+
+class _VercelHeaders(dict):
+    """Case-insensitive-enough header mapping for the existing handler."""
+
+    def get(self, key, default=None):
+        target = str(key).lower()
+        for name, value in self.items():
+            if str(name).lower() == target:
+                return value
+        return default
+
+
+class _VercelRequest(AppHandler):
+    """Small BaseHTTPRequestHandler-compatible request/response bridge."""
+
+    def __init__(self, environ):
+        self.headers = _VercelHeaders()
+        for key, value in environ.items():
+            if key.startswith("HTTP_"):
+                header = key[5:].replace("_", "-").title()
+                self.headers[header] = str(value)
+        if environ.get("CONTENT_TYPE"):
+            self.headers["Content-Type"] = str(environ["CONTENT_TYPE"])
+        if environ.get("CONTENT_LENGTH"):
+            self.headers["Content-Length"] = str(environ["CONTENT_LENGTH"])
+        query = str(environ.get("QUERY_STRING") or "")
+        self.path = str(environ.get("PATH_INFO") or "/") + (f"?{query}" if query else "")
+        self.command = str(environ.get("REQUEST_METHOD") or "GET").upper()
+        self.requestline = f"{self.command} {self.path} HTTP/1.1"
+        self.client_address = (str(environ.get("REMOTE_ADDR") or "127.0.0.1"), 0)
+        self.rfile = environ.get("wsgi.input") or io.BytesIO()
+        self.wfile = io.BytesIO()
+        self.status = 200
+        self.response_headers = []
+
+    def send_response(self, status, message=None):
+        self.status = int(status)
+
+    def send_json(self, data: dict | list, status: int = 200) -> None:
+        payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def send_error_json(self, status: int, message: str) -> None:
+        self.send_json({"error": message, "status": int(status)}, int(status))
+
+    def send_header(self, keyword, value):
+        self.response_headers.append((str(keyword), str(value)))
+
+    def end_headers(self):
+        return None
+
+    def address_string(self):
+        return self.client_address[0]
+
+
+class _VercelWSGIApp:
+    """Expose the existing stdlib HTTP router as a Vercel WSGI application."""
+
+    def __call__(self, environ, start_response):
+        init_db()
+        request = _VercelRequest(environ)
+        method = getattr(AppHandler, f"do_{request.command}", None)
+        if method is None:
+            request.send_error_json(HTTPStatus.METHOD_NOT_ALLOWED, "Method not allowed.")
+        else:
+            try:
+                method(request)
+            except Exception as exc:  # Keep serverless failures as HTTP responses.
+                sys.stderr.write(f"Vercel request failed: {exc.__class__.__name__}: {exc}\n")
+                if not request.response_headers and request.wfile.tell() == 0:
+                    request.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, "Internal server error.")
+                else:
+                    raise
+        body = request.wfile.getvalue()
+        headers = list(request.response_headers)
+        if not any(name.lower() == "content-length" for name, _ in headers):
+            headers.append(("Content-Length", str(len(body))))
+        status_text = HTTPStatus(request.status).phrase if request.status in HTTPStatus._value2member_map_ else ""
+        start_response(f"{request.status} {status_text}".strip(), headers)
+        return [body]
+
+
+# Vercel discovers this top-level WSGI variable when it loads server.py.
+app = _VercelWSGIApp()
 
 
 def main() -> None:
