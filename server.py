@@ -43,6 +43,12 @@ STATIC_DIR = BASE_DIR / "static"
 # generated-document files under /tmp while retaining the local layout when
 # running the built-in HTTP server.
 IS_VERCEL = str(os.getenv("VERCEL", "")).strip().lower() in {"1", "true", "yes", "on"}
+DEV_AUTH_BYPASS_ENABLED = (
+    str(os.getenv("SNB_DEV_AUTH_BYPASS", "")).strip().lower() in {"1", "true", "yes", "on"}
+    and str(os.getenv("VERCEL_ENV", "")).strip().lower() != "production"
+    and str(os.getenv("NODE_ENV", "")).strip().lower() != "production"
+    and str(os.getenv("SNB_ENV", "")).strip().lower() != "production"
+)
 RUNTIME_DIR = Path(
     os.getenv("SNB_RUNTIME_DIR", "/tmp/strategic-narrative-builder" if IS_VERCEL else str(BASE_DIR))
 ).expanduser()
@@ -10208,8 +10214,49 @@ class AppHandler(BaseHTTPRequestHandler):
     def handle_fx_rates(self) -> None:
         return self.send_json(daily_fx_rates())
 
+    def handle_dev_login(self, data: dict) -> None:
+        """Create a normal one-time session link without requiring an email relay.
+
+        This route is intentionally available only when SNB_DEV_AUTH_BYPASS is
+        enabled outside production. It still uses the normal token verification
+        and session-cookie flow rather than granting a permanent session.
+        """
+        email = normalize_login_email(data.get("email") or "developer@example.com")
+        if not email:
+            return self.send_error_json(HTTPStatus.BAD_REQUEST, "A valid email is required.")
+        return_to = safe_return_path(data.get("return_to") or data.get("returnTo"))
+        raw_token = secrets.token_urlsafe(32)
+        timestamp = now_iso()
+        with connect() as conn:
+            conn.execute(
+                "DELETE FROM magic_link_tokens WHERE email = ? AND (used_at IS NOT NULL OR expires_at <= ?)",
+                (email, timestamp),
+            )
+            conn.execute(
+                """
+                INSERT INTO magic_link_tokens (id, email, token_hash, expires_at, used_at, created_at)
+                VALUES (?, ?, ?, ?, NULL, ?)
+                """,
+                (new_id(), email, token_hash(raw_token), future_iso(minutes=MAGIC_LINK_TTL_MINUTES), timestamp),
+            )
+        magic_url = f"{request_base_url(self)}/api/auth/magic/verify?token={quote_plus(raw_token)}&return_to={quote_plus(return_to)}"
+        self.send_json(
+            {
+                "ok": True,
+                "email": email,
+                "expiresInMinutes": MAGIC_LINK_TTL_MINUTES,
+                "delivered": False,
+                "deliveryMode": "Development bypass",
+                "previewUrl": magic_url,
+                "message": "Development sign-in link created. This bypass is disabled in production.",
+            },
+            HTTPStatus.ACCEPTED,
+        )
+
     def handle_magic_link_request(self) -> None:
         data = self.read_json()
+        if DEV_AUTH_BYPASS_ENABLED:
+            return self.handle_dev_login(data)
         email = normalize_login_email(data.get("email"))
         if not email:
             return self.send_error_json(HTTPStatus.BAD_REQUEST, "A valid email is required.")
