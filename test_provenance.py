@@ -1,5 +1,6 @@
 """Tests for field-level provenance (feature 1) and source precedence."""
 import unittest
+from unittest import mock
 
 import server
 
@@ -104,6 +105,46 @@ class DisputeDetectionTests(unittest.TestCase):
         profile = {"revenue": "USD 9B", "fieldDisputes": {"revenue": [{"value": "USD 9B"}, {"value": "USD 8B"}]}}
         keys = {k for k, _ in server.profile_field_candidates(profile)}
         self.assertFalse(any("dispute" in k for k in keys))
+
+
+class NarrativeSynthesisTests(unittest.TestCase):
+    def _payload(self):
+        return {
+            "snapshot": {
+                "name": "NatWest Group", "industry": "Financial services", "revenue": "GBP 14.4B",
+                "fieldDisputes": {"ebitdaMargin": [
+                    {"value": "32%", "source": "Perplexity company lookup"},
+                    {"value": "31%", "source": "SEC EDGAR"},
+                ]},
+            },
+            "financialTrends": [{"year": "2024", "revenue": "GBP 14.4B", "yoyGrowth": "3.1%"}],
+            "priorityInsights": {"boardPriorities": [{"title": "Simplify the technology estate"}]},
+            "csuitePriorities": [{"priority": "Grow net interest income"}],
+            "signalScan": [{"label": "Lloyds cloud-core migration", "url": "https://example.com/lloyds"}],
+        }
+
+    def test_template_narrative_without_provider(self):
+        # Force the no-provider fallback so the test is hermetic (no network).
+        with mock.patch.object(server, "ai_provider_lookup_config", return_value={}):
+            out = server.synthesize_business_narrative(self._payload())
+        self.assertEqual(out["mode"], "template")
+        self.assertIn("NatWest Group", out["executiveSummary"])
+        self.assertTrue(out["paragraphs"])
+        # disputed ebitda margin should surface as a caveat
+        self.assertTrue(any("EBITDA margin" in d["field"] for d in out["disputes"]))
+
+    def test_citations_collected_from_payload(self):
+        with mock.patch.object(server, "ai_provider_lookup_config", return_value={}):
+            out = server.synthesize_business_narrative(self._payload())
+        urls = [c["url"] for c in out["citations"]]
+        self.assertIn("https://example.com/lloyds", urls)
+        self.assertEqual(out["citations"][0]["n"], 1)
+
+    def test_empty_payload_is_safe(self):
+        with mock.patch.object(server, "ai_provider_lookup_config", return_value={}):
+            out = server.synthesize_business_narrative({})
+        self.assertEqual(out["mode"], "template")
+        self.assertTrue(out["executiveSummary"])
 
 
 if __name__ == "__main__":

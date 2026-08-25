@@ -11015,12 +11015,54 @@
             <p class="muted">A working synthesis for account-team review and later report output.</p>
           </div>
         </div>
+        ${renderSynthesizedNarrative()}
         <div class="grid-3">
           ${narrativeField("observed", "Observed", narrative.observed)}
           ${narrativeField("whyItMatters", "Why It Matters", narrative.whyItMatters)}
           ${narrativeField("actions", "Actions / Questions", narrative.actions)}
         </div>
       </section>
+    `;
+  }
+
+  function renderSynthesizedNarrative() {
+    const syn = state.business && state.business.synthesizedNarrative;
+    const busy = !!state.synthesizing;
+    const citeMap = {};
+    ((syn && syn.citations) || []).forEach(function (c) { citeMap[c.n] = c; });
+    function citeChips(nums) {
+      return (nums || []).map(function (n) {
+        const c = citeMap[n];
+        if (!c) return "";
+        return `<a class="cite" href="${attr(c.url)}" target="_blank" rel="noopener" title="${attr(c.label)}">${n}</a>`;
+      }).join("");
+    }
+    let body;
+    if (syn) {
+      body = `
+        <p class="synth-summary">${escapeHtml(syn.executiveSummary || "")}</p>
+        ${(syn.paragraphs || []).map(function (p) {
+          return `<p class="synth-para">${escapeHtml(p.text || "")}${citeChips(p.citations)}</p>`;
+        }).join("")}
+        ${(syn.disputes && syn.disputes.length) ? `<div class="synth-disputes"><strong>Verify before quoting:</strong> ${syn.disputes.map(function (d) {
+          return `${escapeHtml(d.field)} (${(d.values || []).map(function (v) { return escapeHtml(v); }).join(" vs ")})`;
+        }).join("; ")}</div>` : ""}
+        ${(syn.citations && syn.citations.length) ? `<ol class="synth-sources">${syn.citations.map(function (c) {
+          return `<li><a href="${attr(c.url)}" target="_blank" rel="noopener">${escapeHtml(c.label)}</a></li>`;
+        }).join("")}</ol>` : ""}
+        <p class="muted synth-meta">${syn.mode === "ai" ? "AI-synthesized" : "Template synthesis"}${syn.generatedAt ? " &middot; " + escapeHtml(String(syn.generatedAt).slice(0, 10)) : ""}</p>
+      `;
+    } else {
+      body = `<p class="muted">Generate a cited executive narrative from the current company data, financials and priorities.</p>`;
+    }
+    return `
+      <div class="synth-card">
+        <div class="synth-head">
+          <h3>Synthesized Executive Narrative</h3>
+          <button class="btn accent compact" type="button" data-action="synthesize-narrative" ${busy ? "disabled" : ""}>${busy ? "Generating&hellip;" : (syn ? "Regenerate" : "Generate")}</button>
+        </div>
+        ${body}
+      </div>
     `;
   }
 
@@ -12692,6 +12734,20 @@
     if (!button) return;
     const action = button.dataset.action;
     try {
+      if (action === "synthesize-narrative") {
+        const caseId = state.activeCaseId;
+        if (caseId) {
+          state.synthesizing = true;
+          render();
+          try {
+            const data = await api(`/api/value-cases/${encodeURIComponent(caseId)}/business-priorities/synthesize`, { method: "POST", body: "{}" });
+            if (state.business) state.business.synthesizedNarrative = data.synthesizedNarrative;
+          } finally {
+            state.synthesizing = false;
+            render();
+          }
+        }
+      }
       if (action === "logout") {
         await api("/api/logout", { method: "POST", body: "{}" });
         state.me = null;

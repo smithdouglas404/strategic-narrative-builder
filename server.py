@@ -9862,6 +9862,179 @@ def safe_filename(filename: str) -> str:
     cleaned = cleaned.replace(" ", "_")
     return cleaned or "upload.bin"
 
+
+def _narrative_citations(payload: dict, limit: int = 8) -> list[dict]:
+    """Collect labelled, linkable sources from across a business payload."""
+    seen: set[str] = set()
+    citations: list[dict] = []
+
+    def consider(label: str, url: str) -> None:
+        label = clean_html_text(str(label or "")).strip()
+        url = str(url or "").strip()
+        if not url or url in seen:
+            return
+        seen.add(url)
+        citations.append({"n": len(citations) + 1, "label": label or domain_from_url(url) or "Source", "url": url})
+
+    def walk(value: object) -> None:
+        if len(citations) >= limit:
+            return
+        if isinstance(value, dict):
+            if value.get("url") and ("label" in value or "title" in value or "source" in value):
+                consider(value.get("label") or value.get("title") or value.get("source"), value.get("url"))
+            for nested in value.values():
+                walk(nested)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(payload)
+    return citations[:limit]
+
+
+def _narrative_disputed_fields(payload: dict) -> list[dict]:
+    snapshot = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else {}
+    disputes = snapshot.get("fieldDisputes") if isinstance(snapshot.get("fieldDisputes"), dict) else {}
+    labels = {
+        "revenue": "revenue", "annualRevenueUsd": "annual revenue (USD)", "ebitdaUsd": "EBITDA (USD)",
+        "ebitdaMargin": "EBITDA margin", "totalAssetsUsd": "total assets", "netProfit": "net profit",
+        "revenueGrowth": "revenue growth", "fiscalYear": "fiscal year",
+    }
+    rows: list[dict] = []
+    for field, entries in disputes.items():
+        if isinstance(entries, list) and len(entries) >= 2:
+            rows.append({
+                "field": labels.get(field, field),
+                "values": [str(e.get("value") or "") for e in entries if isinstance(e, dict)],
+            })
+    return rows
+
+
+def synthesize_business_narrative(payload: dict, provider: str = "") -> dict:
+    """Produce a cited executive narrative from the structured payload.
+
+    Uses the configured AI provider when one is available and returns a
+    deterministic, source-referenced template otherwise so the feature works
+    with or without API keys.
+    """
+    payload = payload if isinstance(payload, dict) else {}
+    snapshot = payload.get("snapshot") if isinstance(payload.get("snapshot"), dict) else {}
+    company = str(snapshot.get("name") or "").strip() or "The company"
+    industry = str(snapshot.get("industry") or snapshot.get("primaryIndustry") or "its industry").strip()
+    latest = latest_payload_financial_row(payload) if payload else {}
+    latest = latest if isinstance(latest, dict) else {}
+    revenue = str(latest.get("revenue") or snapshot.get("revenue") or "").strip()
+    growth = str(latest.get("yoyGrowth") or "").strip()
+    citations = _narrative_citations(payload)
+    disputes = _narrative_disputed_fields(payload)
+
+    priorities: list[str] = []
+    insights = payload.get("priorityInsights")
+    if isinstance(insights, dict):
+        for row in (insights.get("boardPriorities") or insights.get("priorities") or [])[:3]:
+            if isinstance(row, dict):
+                title = clean_html_text(str(row.get("title") or row.get("priority") or "")).strip()
+                if title:
+                    priorities.append(title)
+    for row in (payload.get("csuitePriorities") or [])[:3]:
+        if isinstance(row, dict):
+            title = clean_html_text(str(row.get("priority") or row.get("title") or "")).strip()
+            if title and title not in priorities:
+                priorities.append(title)
+
+    result = _template_business_narrative(company, industry, revenue, growth, priorities, disputes, citations)
+
+    config = ai_provider_lookup_config(provider) if provider else {}
+    if not config:
+        for candidate in ("perplexity", "openai"):
+            candidate_config = ai_provider_lookup_config(candidate)
+            if candidate_config.get("enabled") and candidate_config.get("api_key"):
+                config = candidate_config
+                break
+    if config.get("enabled") and config.get("api_key"):
+        try:
+            ai = _ai_business_narrative(company, industry, revenue, growth, priorities, citations, config)
+            if ai.get("executiveSummary") and ai.get("paragraphs"):
+                ai["citations"] = citations
+                ai["disputes"] = disputes
+                ai["mode"] = "ai"
+                ai["generatedAt"] = now_iso()
+                return ai
+        except Exception:  # pragma: no cover - provider/network failure falls back to template
+            pass
+    return result
+
+
+def _template_business_narrative(company, industry, revenue, growth, priorities, disputes, citations) -> dict:
+    cite_ns = [c["n"] for c in citations[:3]]
+    money = f" on {revenue} of revenue" if revenue else ""
+    trend = f" ({growth} year on year)" if growth else ""
+    summary = (
+        f"{company} is competing in {industry}{money}{trend}. "
+        "The account opportunity is to connect published management priorities to the technology and "
+        "operating changes required to deliver them."
+    )
+    priority_text = (
+        "Leadership has publicly emphasised " + ", ".join(priorities[:-1]) + f" and {priorities[-1]}."
+        if len(priorities) > 1 else
+        (f"Leadership has publicly emphasised {priorities[0]}." if priorities else
+         "Refresh research to surface published leadership priorities.")
+    )
+    paragraphs = [
+        {"text": priority_text + " Each is a defensible entry point when tied to a measurable financial or "
+                 "operating outcome.", "citations": cite_ns},
+        {"text": "Sequence the conversation from where management has committed publicly, to where peers are "
+                 "applying pressure, to the modernization choices that improve the reported scorecard.",
+         "citations": [c["n"] for c in citations[3:6]]},
+    ]
+    return {
+        "mode": "template",
+        "generatedAt": now_iso(),
+        "executiveSummary": summary,
+        "paragraphs": paragraphs,
+        "citations": citations,
+        "disputes": disputes,
+    }
+
+
+def _ai_business_narrative(company, industry, revenue, growth, priorities, citations, config) -> dict:
+    source_lines = "\n".join(f"[{c['n']}] {c['label']} — {c['url']}" for c in citations) or "(no linked sources yet)"
+    instruction = (
+        "You are a Kyndryl account strategist. Write a concise, defensible executive narrative for an account team. "
+        "Use ONLY the facts and sources given; never invent figures or URLs. Cite claims with bracketed numbers that "
+        "map to the source list. Return strict JSON of shape "
+        '{"executiveSummary": str, "paragraphs": [{"text": str, "citations": [int]}]}.'
+    )
+    context = {
+        "company": company, "industry": industry, "latestRevenue": revenue, "yoyGrowth": growth,
+        "publishedPriorities": priorities, "sources": source_lines,
+    }
+    if str(config.get("provider") or "").lower() == "openai":
+        request_payload = {
+            "model": config.get("model") or "gpt-4.1-mini",
+            "input": f"{instruction}\n\nContext:\n{json.dumps(context)}",
+        }
+        data = openai_responses_json(request_payload, config)
+        text = openai_response_text(data)
+    else:
+        messages = [
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": f"Context:\n{json.dumps(context)}"},
+        ]
+        data = perplexity_chat_json(config, messages)
+        text = perplexity_response_text(data)
+    parsed = extract_json_object(text)
+    paragraphs = parsed.get("paragraphs") if isinstance(parsed.get("paragraphs"), list) else []
+    clean_paragraphs = [
+        {"text": clean_html_text(str(p.get("text") or "")).strip(),
+         "citations": [int(n) for n in (p.get("citations") or []) if str(n).isdigit()]}
+        for p in paragraphs if isinstance(p, dict) and str(p.get("text") or "").strip()
+    ]
+    return {
+        "executiveSummary": clean_html_text(str(parsed.get("executiveSummary") or "")).strip(),
+        "paragraphs": clean_paragraphs,
+    }
+
 class AppHandler(BaseHTTPRequestHandler):
     server_version = "StrategicNarrativeBuilder/2.0"
 
@@ -10016,6 +10189,9 @@ class AppHandler(BaseHTTPRequestHandler):
         match = re.fullmatch(r"/api/value-cases/([^/]+)/annual-report/upload", path)
         if match:
             return self.handle_annual_report_upload(match.group(1))
+        match = re.fullmatch(r"/api/value-cases/([^/]+)/business-priorities/synthesize", path)
+        if match:
+            return self.handle_synthesize_narrative(match.group(1))
         if path == "/api/prompt-log":
             return self.handle_prompt_log()
         if path == "/api/admin/save":
@@ -10780,6 +10956,35 @@ class AppHandler(BaseHTTPRequestHandler):
                 ),
             )
         self.send_json({"ok": True, "updated_at": timestamp})
+
+    def handle_synthesize_narrative(self, case_id: str) -> None:
+        user = self.require_user()
+        if not user:
+            return
+        self.read_json()
+        with connect() as conn:
+            if not self.can_access_case(conn, user, case_id):
+                return self.send_error_json(HTTPStatus.NOT_FOUND, "Value Case not found.")
+            business_row = conn.execute(
+                "SELECT * FROM business_priorities WHERE value_case_id = ?",
+                (case_id,),
+            ).fetchone()
+        if not business_row:
+            return self.send_error_json(HTTPStatus.NOT_FOUND, "Business Priorities data not found.")
+        try:
+            payload = json.loads(business_row["payload_json"] or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        narrative = synthesize_business_narrative(payload)
+        payload["synthesizedNarrative"] = narrative
+        with connect() as conn:
+            conn.execute(
+                "UPDATE business_priorities SET payload_json = ?, updated_at = ? WHERE value_case_id = ?",
+                (json.dumps(payload), now_iso(), case_id),
+            )
+        return self.send_json({"synthesizedNarrative": narrative})
 
     def handle_refresh_industry_research(self, case_id: str) -> None:
         user = self.require_user()
