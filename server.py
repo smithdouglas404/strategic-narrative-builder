@@ -6854,6 +6854,43 @@ def source_confidence_level(source_label: str) -> str:
     return "medium"
 
 
+_CONFIDENCE_RANK = {"low": 0, "medium": 1, "high": 2}
+
+# Providers a merged source string can name, with the tier each one earns on its
+# own. Only used to tell how many distinct providers a combined label mentions.
+_SOURCE_PROVIDER_TIERS = (
+    ("sec edgar", "high"),
+    ("sec companyfacts", "high"),
+    ("sec company", "high"),
+    ("companyfacts", "high"),
+    ("yahoo finance", "high"),
+    ("companies house", "high"),
+    ("openfigi", "high"),
+    ("google", "low"),
+    ("perplexity", "medium"),
+    ("openai", "medium"),
+    ("chatgpt", "medium"),
+    ("local company index", "medium"),
+)
+
+
+def combined_source_confidence_level(source_label: str) -> str:
+    """Confidence tier for a source string that may name several providers.
+
+    merge_profile_fields records one provider per field, so source_confidence_level
+    is right there. A record-level `source` is a merged list of every provider that
+    contributed something, and it does not say which one supplied any given field.
+    Crediting such a field with the best provider in the list would badge an
+    AI-derived figure as filing-grade, so when the label names more than one
+    provider the weakest of them wins.
+    """
+    lowered = str(source_label or "").lower()
+    tiers = {tier for marker, tier in _SOURCE_PROVIDER_TIERS if marker in lowered}
+    if not tiers:
+        return source_confidence_level(source_label)
+    return min(tiers, key=lambda tier: _CONFIDENCE_RANK[tier])
+
+
 # Snapshot-visible fields that should carry a provenance chip in the UI.
 PROVENANCE_FIELDS = (
     "revenue", "annualRevenueUsd", "ebitda", "ebitdaUsd", "totalAssets",
@@ -6938,9 +6975,10 @@ def stamp_field_provenance(result: dict, default_source: str = "") -> dict:
     field_sources = result.setdefault("fieldSources", {})
     if not isinstance(field_sources, dict):
         field_sources = result["fieldSources"] = {}
+    confidence = combined_source_confidence_level(source)
     for key in PROVENANCE_FIELDS:
         if str(result.get(key) or "").strip() and key not in field_sources:
-            field_sources[key] = {"source": source, "confidence": source_confidence_level(source)}
+            field_sources[key] = {"source": source, "confidence": confidence}
     return result
 
 

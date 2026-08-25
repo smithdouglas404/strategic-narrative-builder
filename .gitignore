@@ -18,7 +18,11 @@ __pycache__/
 
 # Node
 node_modules/
+package.json
 package-lock.json
+
+# Claude Code harness files (local tooling, not part of the app)
+.claude/
 
 # OS / editor
 .DS_Store

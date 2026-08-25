@@ -147,5 +147,50 @@ class NarrativeSynthesisTests(unittest.TestCase):
         self.assertTrue(out["executiveSummary"])
 
 
+class CombinedSourceConfidenceTests(unittest.TestCase):
+    """A merged source string must not lend its best provider's tier to every field."""
+
+    MERGED = (
+        "Perplexity company lookup; extracted structured fields from API result.; "
+        "Yahoo Finance global company lookup; validate against annual report and market data.; "
+        "Companies House public search; validate against annual report and market data."
+    )
+
+    def test_multi_provider_label_takes_the_weakest_tier(self):
+        self.assertEqual(server.combined_source_confidence_level(self.MERGED), "medium")
+
+    def test_single_authoritative_provider_stays_high(self):
+        self.assertEqual(
+            server.combined_source_confidence_level(
+                "Yahoo Finance global company lookup; validate against annual report and market data."
+            ),
+            "high",
+        )
+
+    def test_google_drags_a_mixed_label_down_to_low(self):
+        self.assertEqual(
+            server.combined_source_confidence_level(
+                "Google Search snippets; Yahoo Finance global company lookup"
+            ),
+            "low",
+        )
+
+    def test_backfilled_fields_use_the_combined_tier(self):
+        result = {"revenue": "$94.83 billion (FY2025)", "ticker": "NASDAQ: TSLA", "source": self.MERGED}
+        server.stamp_field_provenance(result)
+        self.assertEqual(result["fieldSources"]["revenue"]["confidence"], "medium")
+        self.assertEqual(result["fieldSources"]["ticker"]["confidence"], "medium")
+
+    def test_merge_recorded_field_keeps_its_own_provider_tier(self):
+        # A field the merge layer attributed is not touched by the backfill.
+        result = {
+            "revenue": "$1bn",
+            "source": self.MERGED,
+            "fieldSources": {"revenue": {"source": "SEC EDGAR companyfacts", "confidence": "high"}},
+        }
+        server.stamp_field_provenance(result)
+        self.assertEqual(result["fieldSources"]["revenue"]["confidence"], "high")
+
+
 if __name__ == "__main__":
     unittest.main()
