@@ -8,3 +8,15 @@
 #   pip install cryptography
 #
 # cryptography>=42
+#
+# Optional: install `python-pptx` and `Pillow` to enable the C-level deck
+# export. Without them /api/value-cases/<id>/c-level-deck.pptx returns
+# "No module named 'pptx'"; the rest of the app is unaffected.
+#
+#   pip install python-pptx Pillow
+#
+# python-pptx>=0.6
+# Pillow>=10
+#
+# The PDF variant of that export additionally needs LibreOffice (`soffice`)
+# or PowerPoint on the host; it is a host package, not a pip install.
