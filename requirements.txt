@@ -1,2 +1,10 @@
-# Strategic Narrative Builder 2.0 requires only Python standard library.
-# No external pip dependencies needed.
+# Strategic Narrative Builder 2.0 runs on the Python standard library.
+# No packages are required for local use.
+#
+# Optional: install `cryptography` to encrypt secrets (SMTP password and AI
+# provider API keys) at rest on non-Windows hosts. Without it the app still
+# runs, but those secrets are stored in plaintext.
+#
+#   pip install cryptography
+#
+# cryptography>=42

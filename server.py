@@ -90,6 +90,10 @@ SMTP_STARTTLS = os.getenv("SNB_SMTP_STARTTLS", "1").strip().lower() not in {"0",
 SMTP_SECURITY = os.getenv("SNB_SMTP_SECURITY", "starttls" if SMTP_STARTTLS else "none").strip().lower()
 APP_MASTER_KEY = os.getenv("SNB_APP_MASTER_KEY", "").strip()
 SHARED_COMPANY_API_KEY = os.getenv("SNB_SHARED_COMPANY_API_KEY", "").strip()
+# Optional allowlist of hostnames permitted in user-facing (magic-link) URLs.
+# When set, a spoofed Host header can no longer redirect one-time login links
+# to an attacker domain. Unset keeps the prior behavior (trust the Host header).
+ALLOWED_PUBLIC_HOSTS = [h.strip().lower() for h in os.getenv("SNB_ALLOWED_HOSTS", "").split(",") if h.strip()]
 IT_BENCHMARKING_URL = os.getenv("IT_BENCHMARKING_URL", "http://127.0.0.1:8793").strip().rstrip("/")
 AI_VALUE_NAVIGATOR_URL = os.getenv("AI_VALUE_NAVIGATOR_URL", "http://127.0.0.1:8794").strip().rstrip("/")
 BACKGROUND_REFRESH_ENABLED = os.getenv("SNB_BACKGROUND_REFRESH_ENABLED", "1").strip().lower() not in {"0", "false", "no", "off"}
@@ -1535,6 +1539,31 @@ def decrypt_admin_secret(value: str) -> tuple[str, bool]:
         return "", False
 
 
+def encrypt_provider_secret(value: str) -> str:
+    """Encrypt an AI provider key for storage, falling back to plaintext only
+    when the crypto backend is unavailable (no worse than the legacy behavior)."""
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    try:
+        return encrypt_admin_secret(value)
+    except Exception:  # pragma: no cover - crypto backend missing
+        return value
+
+
+def provider_api_key_from_storage(stored: object) -> str:
+    """Read an AI provider key from storage, transparently handling both the
+    encrypted form and legacy plaintext rows (e.g. keys saved before at-rest
+    encryption existed)."""
+    stored = str(stored or "").strip()
+    if not stored:
+        return ""
+    if stored.startswith(("fernet:v1:", "dpapi:v1:")):
+        plaintext, ok = decrypt_admin_secret(stored)
+        return plaintext if ok else ""
+    return stored
+
+
 def environment_smtp_config() -> dict:
     security = SMTP_SECURITY if SMTP_SECURITY in {"starttls", "ssl", "none"} else "starttls"
     return {
@@ -1638,6 +1667,21 @@ def request_is_loopback(handler: BaseHTTPRequestHandler) -> bool:
     return host in {"127.0.0.1", "::1", "localhost"}
 
 
+def shared_api_access_allowed(handler: BaseHTTPRequestHandler) -> bool:
+    """Authorize the local integration endpoints.
+
+    When a shared API key is configured it is required for every caller: a
+    local reverse proxy can make remote clients appear to be loopback, so the
+    source address alone is not a trustworthy authorization signal. With no key
+    configured the endpoints stay open to genuine loopback callers so local,
+    same-machine integrations keep working without setup.
+    """
+    supplied = str(handler.headers.get("X-Shared-API-Key") or "").strip()
+    if SHARED_COMPANY_API_KEY:
+        return secrets.compare_digest(supplied, SHARED_COMPANY_API_KEY)
+    return request_is_loopback(handler)
+
+
 def request_base_url(handler: BaseHTTPRequestHandler) -> str:
     configured_base_url = str(smtp_runtime_config().get("publicBaseUrl") or "").strip().rstrip("/")
     if configured_base_url:
@@ -1645,6 +1689,11 @@ def request_base_url(handler: BaseHTTPRequestHandler) -> str:
     host = str(handler.headers.get("Host") or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9.-]+(?::\d{1,5})?", host):
         host = f"127.0.0.1:{os.environ.get('PORT', '8787')}"
+    # When an allowlist is configured, never build a link to an unexpected host
+    # (host-header poisoning of the magic-link flow); fall back to the first
+    # allowed hostname instead.
+    if ALLOWED_PUBLIC_HOSTS and host.split(":", 1)[0].lower() not in ALLOWED_PUBLIC_HOSTS:
+        host = ALLOWED_PUBLIC_HOSTS[0]
     forwarded_proto = str(handler.headers.get("X-Forwarded-Proto") or "").split(",", 1)[0].strip().lower()
     scheme = "https" if forwarded_proto == "https" else "http"
     return f"{scheme}://{host}"
@@ -2911,7 +2960,7 @@ def ai_provider_runtime_configs() -> dict[str, dict]:
         if provider not in configs:
             continue
         env_config = configs[provider]
-        row_api_key = str(row["api_key"] or "").strip()
+        row_api_key = provider_api_key_from_storage(row["api_key"])
         api_key = row_api_key or env_config.get("api_key", "")
         enabled = int(row["enabled"] or 0)
         if not row_api_key and env_config.get("api_key") and env_config.get("enabled"):
@@ -9710,6 +9759,17 @@ def seed_defaults(conn: sqlite3.Connection) -> None:
             (f"seed-ai-{provider[0]}", *provider, timestamp, timestamp),
         )
 
+    # Migrate any legacy plaintext provider keys to encrypted-at-rest storage.
+    for row in conn.execute("SELECT id, api_key FROM ai_provider_configs").fetchall():
+        stored = str(row["api_key"] or "").strip()
+        if stored and not stored.startswith(("fernet:v1:", "dpapi:v1:")):
+            encrypted = encrypt_provider_secret(stored)
+            if encrypted != stored:
+                conn.execute(
+                    "UPDATE ai_provider_configs SET api_key = ? WHERE id = ?",
+                    (encrypted, row["id"]),
+                )
+
     benchmarks = [
         (
             "Manufacturing",
@@ -10560,10 +10620,7 @@ class AppHandler(BaseHTTPRequestHandler):
         loopback it works without configuration; remote callers must provide the
         shared API key in X-Shared-API-Key.
         """
-        client_host = str(self.client_address[0] or "").strip().lower()
-        is_loopback = client_host in {"127.0.0.1", "::1", "localhost"}
-        supplied_key = str(self.headers.get("X-Shared-API-Key") or "").strip()
-        if not is_loopback and (not SHARED_COMPANY_API_KEY or supplied_key != SHARED_COMPANY_API_KEY):
+        if not shared_api_access_allowed(self):
             return self.send_error_json(HTTPStatus.FORBIDDEN, "Shared company API access denied.")
 
         params = parse_qs(parsed.query)
@@ -10615,10 +10672,7 @@ class AppHandler(BaseHTTPRequestHandler):
         )
 
     def handle_shared_companies(self, parsed) -> None:
-        client_host = str(self.client_address[0] or "").strip().lower()
-        is_loopback = client_host in {"127.0.0.1", "::1", "localhost"}
-        supplied_key = str(self.headers.get("X-Shared-API-Key") or "").strip()
-        if not is_loopback and (not SHARED_COMPANY_API_KEY or supplied_key != SHARED_COMPANY_API_KEY):
+        if not shared_api_access_allowed(self):
             return self.send_error_json(HTTPStatus.FORBIDDEN, "Shared company API access denied.")
         query = (parse_qs(parsed.query).get("q", [""])[0] or "").strip()
         companies = all_shared_company_profiles(query)
@@ -10632,10 +10686,7 @@ class AppHandler(BaseHTTPRequestHandler):
         )
 
     def handle_shared_cases(self, parsed) -> None:
-        client_host = str(self.client_address[0] or "").strip().lower()
-        is_loopback = client_host in {"127.0.0.1", "::1", "localhost"}
-        supplied_key = str(self.headers.get("X-Shared-API-Key") or "").strip()
-        if not is_loopback and (not SHARED_COMPANY_API_KEY or supplied_key != SHARED_COMPANY_API_KEY):
+        if not shared_api_access_allowed(self):
             return self.send_error_json(HTTPStatus.FORBIDDEN, "Shared case API access denied.")
         query = (parse_qs(parsed.query).get("q", [""])[0] or "").strip()
         cases = shared_case_catalog(query)
@@ -11932,13 +11983,15 @@ class AppHandler(BaseHTTPRequestHandler):
         timestamp = now_iso()
         with connect() as conn:
             existing = conn.execute("SELECT * FROM ai_provider_configs WHERE provider = ?", (provider,)).fetchone()
-            existing_key = str(existing["api_key"] or "").strip() if existing else ""
+            existing_key = provider_api_key_from_storage(existing["api_key"]) if existing else ""
             if api_key_input.upper() == "CLEAR":
-                api_key = ""
+                api_key_plaintext = ""
             elif is_masked_secret(api_key_input):
-                api_key = existing_key
+                api_key_plaintext = existing_key
             else:
-                api_key = api_key_input
+                api_key_plaintext = api_key_input
+            # Store the key encrypted at rest (transparent to reads).
+            api_key = encrypt_provider_secret(api_key_plaintext)
 
             if existing:
                 conn.execute(
