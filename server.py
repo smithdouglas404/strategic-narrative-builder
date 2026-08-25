@@ -2990,6 +2990,19 @@ def ai_provider_lookup_config(provider: str) -> dict:
     return config
 
 
+def quick_admin_openai_model_choices() -> tuple[list[str], str]:
+    """The OpenAI models the quick-settings panel offers, and the current one.
+
+    The saved model is included even when it is not one of the built-in choices,
+    so an operator-configured model stays selectable and survives a re-save.
+    """
+    current = str(ai_provider_runtime_configs().get("openai", {}).get("model") or OPENAI_MODEL).strip()
+    choices = list(OPENAI_MODEL_CHOICES)
+    if current and current not in choices:
+        choices.insert(0, current)
+    return choices, current
+
+
 def cache_provider_label(provider: str) -> str:
     normalized = str(provider or "").strip().lower()
     if normalized == "openai":
@@ -11922,10 +11935,7 @@ class AppHandler(BaseHTTPRequestHandler):
         configs = ai_provider_runtime_configs()
         perplexity = configs.get("perplexity", {})
         openai = configs.get("openai", {})
-        models = list(OPENAI_MODEL_CHOICES)
-        current_model = str(openai.get("model") or OPENAI_MODEL).strip()
-        if current_model and current_model not in models:
-            models.insert(0, current_model)
+        models, current_model = quick_admin_openai_model_choices()
         self.send_json({
             "ok": True,
             "perplexityHasKey": bool(perplexity.get("api_key")),
@@ -11967,9 +11977,8 @@ class AppHandler(BaseHTTPRequestHandler):
         perplexity_key = str(data.get("perplexityKey") or "").strip()
         openai_key = str(data.get("openaiKey") or "").strip()
         openai_model = str(data.get("openaiModel") or "").strip()
-        if openai_model and openai_model not in OPENAI_MODEL_CHOICES and openai_model != OPENAI_MODEL:
-            # accept any non-empty model the operator picked, but ignore obvious junk
-            openai_model = openai_model[:64]
+        if openai_model and openai_model not in quick_admin_openai_model_choices()[0]:
+            return self.send_error_json(HTTPStatus.BAD_REQUEST, "Unknown OpenAI model.")
         updated: list[str] = []
         with connect() as conn:
             if perplexity_key and not is_masked_secret(perplexity_key):

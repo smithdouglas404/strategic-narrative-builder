@@ -129,6 +129,19 @@ class HttpSmokeTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["updated"], [])
 
+    def test_quick_admin_rejects_unoffered_model(self):
+        status, body = self._post(
+            "/api/quick-admin/save",
+            b'{"pin":"1234","openaiModel":"not-a-real-model"}',
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("Unknown OpenAI model", json.loads(body)["error"])
+
+    def test_quick_admin_accepts_an_offered_model(self):
+        offered = json.loads(self._post("/api/quick-admin/config", b'{"pin":"1234"}')[1])["openaiModels"]
+        payload = json.dumps({"pin": "1234", "openaiModel": offered[0]}).encode()
+        self.assertEqual(self._post("/api/quick-admin/save", payload)[0], 200)
+
 
 if __name__ == "__main__":
     unittest.main()
