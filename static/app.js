@@ -5012,6 +5012,28 @@
     }
   }
 
+  function renderChangeDigest(business) {
+    const digest = business && business.changeDigest;
+    const changes = (digest && digest.changes) || [];
+    if (!changes.length) return "";
+    const tagFor = { financial: "up", profile: "up", priority: "new", signal: "watch" };
+    const asOf = digest.generatedAt ? String(digest.generatedAt).slice(0, 10) : "";
+    return `
+      <div class="change-digest">
+        <div class="change-digest-head">Changes since last refresh${asOf ? ` &middot; ${escapeHtml(asOf)}` : ""}</div>
+        <ul>
+          ${changes.map(function (c) {
+            const tag = tagFor[c.type] || "new";
+            return `<li>
+              <span class="chg chg-${tag}">${escapeHtml(c.label || "Updated")}</span>
+              <span class="chg-detail">${escapeHtml(c.detail || "")}</span>
+            </li>`;
+          }).join("")}
+        </ul>
+      </div>
+    `;
+  }
+
   function renderBusiness() {
     if (!state.activeCaseId || !state.business) {
       if (state.businessProcessing) {
@@ -5039,6 +5061,7 @@
       )}
       <form id="business-form" data-business-form>
         ${shouldShowBusinessLoader() ? renderBusinessLoader(state.businessProcessing) : ""}
+        ${renderChangeDigest(business)}
         ${renderBusinessOverviewCards(business)}
         ${renderStrategicBusinessNarrative(business)}
         ${renderResearchFirmPriorities(business.researchFirmPriorities || buildResearchFirmPriorities(currentPriorityCompany()))}

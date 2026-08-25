@@ -9469,6 +9469,105 @@ def mark_payload_refresh_attempt(payload: dict, status: str, message: str) -> di
     return refreshed
 
 
+def ensure_value_case_snapshot_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS value_case_snapshots (
+            id TEXT PRIMARY KEY,
+            value_case_id TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+
+def save_value_case_snapshot(conn: sqlite3.Connection, case_id: str, payload: dict, keep: int = 12) -> None:
+    """Archive a dated copy of a payload, retaining the most recent `keep`."""
+    try:
+        ensure_value_case_snapshot_schema(conn)
+        conn.execute(
+            "INSERT INTO value_case_snapshots (id, value_case_id, payload_json, created_at) VALUES (?, ?, ?, ?)",
+            (new_id(), case_id, json.dumps(payload), now_iso()),
+        )
+        conn.execute(
+            """
+            DELETE FROM value_case_snapshots
+            WHERE value_case_id = ? AND id NOT IN (
+                SELECT id FROM value_case_snapshots
+                WHERE value_case_id = ? ORDER BY created_at DESC LIMIT ?
+            )
+            """,
+            (case_id, case_id, keep),
+        )
+    except sqlite3.Error:  # pragma: no cover - snapshot storage is best-effort
+        pass
+
+
+def _digest_priority_titles(payload: dict) -> list[str]:
+    titles: list[str] = []
+    insights = payload.get("priorityInsights")
+    if isinstance(insights, dict):
+        for row in (insights.get("boardPriorities") or insights.get("priorities") or []):
+            if isinstance(row, dict):
+                title = clean_html_text(str(row.get("title") or row.get("priority") or "")).strip()
+                if title:
+                    titles.append(title)
+    for row in (payload.get("csuitePriorities") or []):
+        if isinstance(row, dict):
+            title = clean_html_text(str(row.get("priority") or row.get("title") or "")).strip()
+            if title:
+                titles.append(title)
+    return titles
+
+
+def _digest_signals(payload: dict) -> list[str]:
+    out: list[str] = []
+    for row in (payload.get("signalScan") or []):
+        if isinstance(row, dict):
+            text = clean_html_text(str(row.get("label") or row.get("title") or row.get("signal") or "")).strip()
+            if text:
+                out.append(text)
+    return out
+
+
+def compute_change_digest(old_payload: object, new_payload: object) -> dict:
+    """Diff two payloads into a human-readable 'what changed' list."""
+    old = old_payload if isinstance(old_payload, dict) else {}
+    new = new_payload if isinstance(new_payload, dict) else {}
+    old_snap = old.get("snapshot") if isinstance(old.get("snapshot"), dict) else {}
+    new_snap = new.get("snapshot") if isinstance(new.get("snapshot"), dict) else {}
+    changes: list[dict] = []
+
+    old_rev = str(old_snap.get("revenue") or "").strip()
+    new_rev = str(new_snap.get("revenue") or "").strip()
+    if new_rev and new_rev != old_rev:
+        pct = ""
+        before, after = _financial_magnitude(old_rev), _financial_magnitude(new_rev)
+        if before and after and before != 0:
+            delta = (after - before) / abs(before) * 100
+            pct = f" ({'+' if delta >= 0 else ''}{delta:.1f}%)"
+        changes.append({"type": "financial", "label": "Revenue updated", "detail": f"{old_rev or '—'} → {new_rev}{pct}"})
+
+    for field, label in (("employees", "Employees"), ("fiscalYear", "Fiscal year")):
+        old_value = str(old_snap.get(field) or "").strip()
+        new_value = str(new_snap.get(field) or "").strip()
+        if new_value and new_value != old_value:
+            changes.append({"type": "profile", "label": f"{label} updated", "detail": f"{old_value or '—'} → {new_value}"})
+
+    old_titles = {title.lower() for title in _digest_priority_titles(old)}
+    for title in _digest_priority_titles(new):
+        if title.lower() not in old_titles:
+            changes.append({"type": "priority", "label": "New priority", "detail": title})
+
+    old_signals = {signal.lower() for signal in _digest_signals(old)}
+    for signal in _digest_signals(new):
+        if signal.lower() not in old_signals:
+            changes.append({"type": "signal", "label": "New competitor/market signal", "detail": signal})
+
+    return {"generatedAt": now_iso(), "changes": changes[:12]}
+
+
 def refresh_value_case_payload(case_id: str) -> bool:
     with connect() as conn:
         row = conn.execute(
@@ -9501,8 +9600,11 @@ def refresh_value_case_payload(case_id: str) -> bool:
     except Exception as exc:  # pragma: no cover - defensive background guard
         refreshed_payload = mark_payload_refresh_attempt(payload, "error", f"Daily refresh failed: {exc.__class__.__name__}.")
 
+    # Record what changed since the previous version, and archive it.
+    refreshed_payload["changeDigest"] = compute_change_digest(payload, refreshed_payload)
     timestamp = now_iso()
     with connect() as conn:
+        save_value_case_snapshot(conn, case_id, payload)
         conn.execute(
             """
             UPDATE business_priorities
