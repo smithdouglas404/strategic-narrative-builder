@@ -2913,6 +2913,7 @@ def admin_usage_payload(conn: sqlite3.Connection) -> dict:
         "users": users,
         "recentLogins": recent_logins,
         "valueCases": value_cases,
+        "aiUsage": ai_usage_summary(),
         "generatedAt": now_iso(),
     }
 
@@ -5026,6 +5027,115 @@ def openai_response_text(data: dict) -> str:
     return "\n".join(chunks).strip()
 
 
+# Approximate public list prices per 1M tokens (USD), used only to estimate
+# spend for the usage dashboard — not billing-accurate.
+AI_MODEL_PRICING = {
+    "gpt-4.1-mini": {"in": 0.40, "out": 1.60},
+    "gpt-4.1": {"in": 2.00, "out": 8.00},
+    "sonar-pro": {"in": 3.00, "out": 15.00},
+    "sonar": {"in": 1.00, "out": 1.00},
+}
+
+
+def estimate_ai_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
+    model_text = str(model or "").lower()
+    price = next((p for name, p in AI_MODEL_PRICING.items() if name in model_text), {"in": 0.5, "out": 1.5})
+    return round(prompt_tokens / 1_000_000 * price["in"] + completion_tokens / 1_000_000 * price["out"], 6)
+
+
+def ensure_ai_usage_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ai_usage_events (
+            id TEXT PRIMARY KEY,
+            provider TEXT NOT NULL,
+            model TEXT,
+            context TEXT,
+            prompt_tokens INTEGER DEFAULT 0,
+            completion_tokens INTEGER DEFAULT 0,
+            total_tokens INTEGER DEFAULT 0,
+            latency_ms INTEGER DEFAULT 0,
+            est_cost_usd REAL DEFAULT 0,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+
+
+def record_ai_usage(provider: str, model: str, data: object, latency_ms: int, context: str = "") -> None:
+    """Persist one AI call's tokens/latency/cost. Never raises into the caller."""
+    try:
+        usage = data.get("usage") if isinstance(data, dict) else {}
+        usage = usage if isinstance(usage, dict) else {}
+        prompt_tokens = int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+        completion_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+        total_tokens = int(usage.get("total_tokens") or (prompt_tokens + completion_tokens))
+        cost = estimate_ai_cost(model, prompt_tokens, completion_tokens)
+        with connect() as conn:
+            ensure_ai_usage_schema(conn)
+            conn.execute(
+                """
+                INSERT INTO ai_usage_events
+                  (id, provider, model, context, prompt_tokens, completion_tokens,
+                   total_tokens, latency_ms, est_cost_usd, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (new_id(), provider, str(model or ""), context, prompt_tokens, completion_tokens,
+                 total_tokens, int(latency_ms), cost, now_iso()),
+            )
+    except Exception:  # pragma: no cover - telemetry must never break a request
+        pass
+
+
+def record_cache_hit(context: str = "company_lookup") -> None:
+    record_ai_usage("cache", "", {}, 0, context)
+
+
+def ai_usage_summary(days: int = 30) -> dict:
+    """Aggregate AI usage for the admin dashboard."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    providers: list[dict] = []
+    totals = {"calls": 0, "tokens": 0, "cost": 0.0, "cacheHits": 0}
+    try:
+        with connect() as conn:
+            ensure_ai_usage_schema(conn)
+            rows = conn.execute(
+                """
+                SELECT provider,
+                       COUNT(*) AS calls,
+                       COALESCE(SUM(total_tokens), 0) AS tokens,
+                       COALESCE(SUM(est_cost_usd), 0) AS cost,
+                       COALESCE(AVG(NULLIF(latency_ms, 0)), 0) AS avg_latency
+                FROM ai_usage_events
+                WHERE created_at >= ?
+                GROUP BY provider
+                ORDER BY cost DESC
+                """,
+                (cutoff,),
+            ).fetchall()
+    except sqlite3.Error:
+        rows = []
+    for row in rows:
+        provider = str(row["provider"] or "")
+        calls = int(row["calls"] or 0)
+        tokens = int(row["tokens"] or 0)
+        cost = round(float(row["cost"] or 0), 4)
+        if provider == "cache":
+            totals["cacheHits"] += calls
+        else:
+            totals["calls"] += calls
+            totals["tokens"] += tokens
+            totals["cost"] = round(totals["cost"] + cost, 4)
+        providers.append({
+            "provider": provider,
+            "calls": calls,
+            "tokens": tokens,
+            "estCostUsd": cost,
+            "avgLatencyMs": int(row["avg_latency"] or 0),
+        })
+    return {"days": days, "providers": providers, "totals": totals}
+
+
 def openai_responses_json(payload: dict, config: dict, timeout_s: float | None = None) -> dict:
     api_key = str(config.get("api_key") or "").strip()
     endpoint_url = str(config.get("endpoint_url") or OPENAI_RESPONSES_URL).strip()
@@ -5041,12 +5151,17 @@ def openai_responses_json(payload: dict, config: dict, timeout_s: float | None =
         },
         method="POST",
     )
+    start = time.monotonic()
     try:
         with urlopen(request, timeout=timeout_s or OPENAI_LOOKUP_TIMEOUT_SECONDS) as response:
             data = json.loads(response.read(2_000_000).decode("utf-8"))
     except (HTTPError, URLError, TimeoutError, json.JSONDecodeError, OSError, ValueError):
         return {}
-    return data if isinstance(data, dict) else {}
+    if isinstance(data, dict):
+        record_ai_usage("openai", payload.get("model") or config.get("model"), data,
+                        int((time.monotonic() - start) * 1000))
+        return data
+    return {}
 
 
 def chatgpt_company_lookup_payload(query: str, use_web_search: bool, config: dict) -> dict:
@@ -5428,6 +5543,7 @@ def perplexity_chat_json(config: dict, messages: list[dict], timeout_s: float | 
         },
         method="POST",
     )
+    start = time.monotonic()
     try:
         with urlopen(request, timeout=timeout_s or PERPLEXITY_LOOKUP_TIMEOUT_SECONDS) as response:
             data = json.loads(response.read(2_000_000).decode("utf-8"))
@@ -5439,7 +5555,10 @@ def perplexity_chat_json(config: dict, messages: list[dict], timeout_s: float | 
         return {"_error": "Perplexity request timed out"}
     except (json.JSONDecodeError, OSError, ValueError) as exc:
         return {"_error": f"Perplexity response error: {type(exc).__name__}"}
-    return data if isinstance(data, dict) else {}
+    if isinstance(data, dict):
+        record_ai_usage("perplexity", model, data, int((time.monotonic() - start) * 1000))
+        return data
+    return {}
 
 
 def perplexity_response_text(data: dict) -> str:
@@ -8030,6 +8149,7 @@ def enrich_lookup_results_with_profile_data(results: list[dict]) -> list[dict]:
 def company_lookup_results(query: str, refresh: bool = False) -> list[dict]:
     cached_results = cached_company_lookup_results(query)
     if cached_results and not refresh:
+        record_cache_hit("company_lookup")
         return dedupe_and_rank_company_results(cached_results)
     perplexity_results = perplexity_company_lookup_results(query)
     chatgpt_results = chatgpt_company_lookup_results(query)
@@ -9618,6 +9738,7 @@ def load_research_source_catalog() -> list[dict]:
 
 def seed_defaults(conn: sqlite3.Connection) -> None:
     timestamp = now_iso()
+    ensure_ai_usage_schema(conn)
 
     super_id = "seed-super-user"
     rep_id = "seed-account-rep"
@@ -10199,6 +10320,8 @@ class AppHandler(BaseHTTPRequestHandler):
             return self.handle_admin_config()
         if path == "/api/admin/usage":
             return self.handle_admin_usage()
+        if path == "/api/admin/ai-usage":
+            return self.handle_admin_ai_usage()
         if path == "/api/admin/value-cases.csv":
             return self.handle_admin_value_cases_csv()
         if path == "/api/research-sources":
@@ -11672,6 +11795,12 @@ class AppHandler(BaseHTTPRequestHandler):
         with connect() as conn:
             data = admin_usage_payload(conn)
         self.send_json(data)
+
+    def handle_admin_ai_usage(self) -> None:
+        user = self.require_admin()
+        if not user:
+            return
+        self.send_json(ai_usage_summary())
 
     def handle_admin_value_cases_csv(self) -> None:
         user = self.require_admin()

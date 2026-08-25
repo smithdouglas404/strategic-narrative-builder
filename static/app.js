@@ -11342,6 +11342,46 @@
     `;
   }
 
+  function renderAiUsageCard(aiUsage) {
+    if (!aiUsage) return "";
+    const totals = aiUsage.totals || {};
+    const providers = aiUsage.providers || [];
+    const tokens = totals.tokens || 0;
+    const tokensLabel = tokens >= 1000 ? (tokens / 1000).toFixed(1) + "k" : String(tokens);
+    const cost = Number(totals.cost || 0);
+    return `
+      <div class="ai-usage-card">
+        <div class="ai-usage-head">
+          <h3>AI Spend &amp; Latency</h3>
+          <span class="muted">Last ${escapeHtml(aiUsage.days || 30)} days &middot; estimated</span>
+        </div>
+        <div class="ai-cost-strip">
+          <div><div class="m">Provider calls</div><div class="v">${escapeHtml(totals.calls || 0)}</div></div>
+          <div><div class="m">Tokens</div><div class="v">${escapeHtml(tokensLabel)}</div></div>
+          <div><div class="m">Est. spend</div><div class="v">$${cost.toFixed(2)}</div></div>
+          <div><div class="m">Cache hits</div><div class="v mut">${escapeHtml(totals.cacheHits || 0)}</div></div>
+        </div>
+        ${providers.length ? `
+        <div class="table-wrap">
+          <table class="ai-usage-table">
+            <thead><tr><th>Provider</th><th>Calls</th><th>Tokens</th><th>Est. $</th><th>Avg latency</th></tr></thead>
+            <tbody>
+              ${providers.map(function (p) {
+                return `<tr>
+                  <td><strong>${escapeHtml(p.provider || "")}</strong></td>
+                  <td>${escapeHtml(p.calls || 0)}</td>
+                  <td>${escapeHtml(p.tokens || 0)}</td>
+                  <td>$${Number(p.estCostUsd || 0).toFixed(2)}</td>
+                  <td>${escapeHtml(p.avgLatencyMs || 0)} ms</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>
+        </div>` : `<p class="muted">No AI calls recorded yet.</p>`}
+      </div>
+    `;
+  }
+
   function renderAdminUsage() {
     const usage = state.adminUsage;
     if (!usage) {
@@ -11369,6 +11409,7 @@
           ${usageSummaryCard("Active Users", summary.activeUsers30d || 0, "Last 30 days")}
           ${usageSummaryCard("Value Cases", summary.totalValueCases || 0, "All owners")}
         </div>
+        ${renderAiUsageCard(usage.aiUsage)}
         <div class="usage-register">
           <div class="section-heading compact-heading"><div><h3>Usage By Login</h3></div></div>
           <div class="table-wrap usage-table-wrap">
