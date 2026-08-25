@@ -7172,3 +7172,103 @@ td textarea:focus {
 .change-digest .chg-detail {
   color: #43403a;
 }
+
+/* PIN-gated quick admin settings */
+.quick-admin-btn {
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--deep-forest);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 650;
+  margin-left: 6px;
+}
+.quick-admin-btn:hover {
+  border-color: var(--spruce);
+  color: var(--spruce);
+}
+.qa-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(4, 35, 21, 0.42);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.qa-modal {
+  width: min(440px, 100%);
+  background: var(--white);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(4, 35, 21, 0.28);
+  padding: 22px 24px 24px;
+  display: grid;
+  gap: 14px;
+}
+.qa-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.qa-modal-head h2 {
+  font-size: 18px;
+  margin: 0;
+  color: var(--deep-forest);
+}
+.qa-close {
+  border: 0;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--earth);
+  padding: 0 4px;
+}
+.qa-close:hover {
+  color: var(--warm-red);
+}
+.qa-modal .field {
+  display: grid;
+  gap: 6px;
+}
+.qa-modal .field span {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--deep-forest);
+}
+.qa-modal input,
+.qa-modal select {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 9px 11px;
+  font-size: 14px;
+  background: var(--white);
+}
+.qa-modal input:focus,
+.qa-modal select:focus {
+  outline: 2px solid var(--spruce);
+  outline-offset: 1px;
+  border-color: var(--spruce);
+}
+.qa-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.qa-error {
+  background: #fbecea;
+  border: 1px solid #f2c4bd;
+  color: #b3271a;
+  border-radius: 7px;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+.qa-success {
+  background: #e7f1ea;
+  border: 1px solid #bcd9c6;
+  color: var(--digital-green);
+  border-radius: 7px;
+  padding: 9px 12px;
+  font-size: 13px;
+}

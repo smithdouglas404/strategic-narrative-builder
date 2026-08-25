@@ -68,6 +68,9 @@ C_LEVEL_DECK_TEMPLATE_PATH = Path(
 GLOBAL_LOOKUP_TIMEOUT_SECONDS = float(os.getenv("SNB_GLOBAL_LOOKUP_TIMEOUT_SECONDS", "1.5"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini").strip() or "gpt-4.1-mini"
+# PIN-gated quick-settings panel for editing the two AI keys and OpenAI model.
+QUICK_ADMIN_PIN = os.getenv("SNB_QUICK_ADMIN_PIN", "1234").strip() or "1234"
+OPENAI_MODEL_CHOICES = ["gpt-4.1-mini", "gpt-4.1", "gpt-4o", "gpt-4o-mini"]
 OPENAI_LOOKUP_TIMEOUT_SECONDS = float(os.getenv("SNB_OPENAI_LOOKUP_TIMEOUT_SECONDS", "12"))
 OPENAI_RESPONSES_URL = os.getenv("OPENAI_RESPONSES_URL", "https://api.openai.com/v1/responses").strip()
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "").strip()
@@ -10477,6 +10480,10 @@ class AppHandler(BaseHTTPRequestHandler):
         match = re.fullmatch(r"/api/value-cases/([^/]+)/business-priorities/synthesize", path)
         if match:
             return self.handle_synthesize_narrative(match.group(1))
+        if path == "/api/quick-admin/config":
+            return self.handle_quick_admin_config()
+        if path == "/api/quick-admin/save":
+            return self.handle_quick_admin_save()
         if path == "/api/prompt-log":
             return self.handle_prompt_log()
         if path == "/api/admin/save":
@@ -11903,6 +11910,80 @@ class AppHandler(BaseHTTPRequestHandler):
         if not user:
             return
         self.send_json(ai_usage_summary())
+
+    def _quick_admin_pin_ok(self, data: dict) -> bool:
+        return secrets.compare_digest(str(data.get("pin") or "").strip(), QUICK_ADMIN_PIN)
+
+    def handle_quick_admin_config(self) -> None:
+        """Return current AI key/model state for the PIN-gated quick-settings panel."""
+        data = self.read_json()
+        if not self._quick_admin_pin_ok(data):
+            return self.send_error_json(HTTPStatus.FORBIDDEN, "Incorrect admin number.")
+        configs = ai_provider_runtime_configs()
+        perplexity = configs.get("perplexity", {})
+        openai = configs.get("openai", {})
+        models = list(OPENAI_MODEL_CHOICES)
+        current_model = str(openai.get("model") or OPENAI_MODEL).strip()
+        if current_model and current_model not in models:
+            models.insert(0, current_model)
+        self.send_json({
+            "ok": True,
+            "perplexityHasKey": bool(perplexity.get("api_key")),
+            "openaiHasKey": bool(openai.get("api_key")),
+            "openaiModel": current_model,
+            "openaiModels": models,
+        })
+
+    def _quick_update_provider(self, conn, provider: str, api_key=None, model=None) -> None:
+        existing = conn.execute("SELECT * FROM ai_provider_configs WHERE provider = ?", (provider,)).fetchone()
+        defaults = env_ai_provider_config(provider)
+        current_key = provider_api_key_from_storage(existing["api_key"]) if existing else ""
+        current_model = (str(existing["model"]).strip() if existing and existing["model"] else "") or defaults["model"]
+        new_key = current_key if api_key is None else api_key
+        new_model = current_model if model is None else model
+        enabled = 1 if new_key else (int(existing["enabled"] or 0) if existing else 0)
+        now = now_iso()
+        if existing:
+            conn.execute(
+                "UPDATE ai_provider_configs SET api_key = ?, model = ?, enabled = ?, updated_at = ? WHERE provider = ?",
+                (encrypt_provider_secret(new_key), new_model, enabled, now, provider),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO ai_provider_configs
+                  (id, provider, display_name, endpoint_url, model, api_key, enabled,
+                   use_for_company_lookup, extract_with_tables, priority_order, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (new_id(), provider, defaults["display_name"], defaults["endpoint_url"], new_model,
+                 encrypt_provider_secret(new_key), enabled, 1, 1, defaults["priority_order"], now, now),
+            )
+
+    def handle_quick_admin_save(self) -> None:
+        data = self.read_json()
+        if not self._quick_admin_pin_ok(data):
+            return self.send_error_json(HTTPStatus.FORBIDDEN, "Incorrect admin number.")
+        perplexity_key = str(data.get("perplexityKey") or "").strip()
+        openai_key = str(data.get("openaiKey") or "").strip()
+        openai_model = str(data.get("openaiModel") or "").strip()
+        if openai_model and openai_model not in OPENAI_MODEL_CHOICES and openai_model != OPENAI_MODEL:
+            # accept any non-empty model the operator picked, but ignore obvious junk
+            openai_model = openai_model[:64]
+        updated: list[str] = []
+        with connect() as conn:
+            if perplexity_key and not is_masked_secret(perplexity_key):
+                self._quick_update_provider(conn, "perplexity", api_key=perplexity_key)
+                updated.append("Perplexity key")
+            openai_kwargs = {}
+            if openai_key and not is_masked_secret(openai_key):
+                openai_kwargs["api_key"] = openai_key
+            if openai_model:
+                openai_kwargs["model"] = openai_model
+            if openai_kwargs:
+                self._quick_update_provider(conn, "openai", **openai_kwargs)
+                updated.append("OpenAI settings")
+        self.send_json({"ok": True, "updated": updated})
 
     def handle_admin_value_cases_csv(self) -> None:
         user = self.require_admin()

@@ -111,6 +111,24 @@ class HttpSmokeTests(unittest.TestCase):
     def test_unknown_static_path_is_404(self):
         self.assertEqual(self._get("/does-not-exist.html")[0], 404)
 
+    def test_quick_admin_wrong_pin_forbidden(self):
+        self.assertEqual(self._post("/api/quick-admin/config", b'{"pin":"0000"}')[0], 403)
+
+    def test_quick_admin_correct_pin_returns_config(self):
+        status, body = self._post("/api/quick-admin/config", b'{"pin":"1234"}')
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertTrue(data["ok"])
+        self.assertIn("openaiModels", data)
+
+    def test_quick_admin_blank_save_changes_nothing(self):
+        status, body = self._post(
+            "/api/quick-admin/save",
+            b'{"pin":"1234","perplexityKey":"","openaiKey":"","openaiModel":""}',
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["updated"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

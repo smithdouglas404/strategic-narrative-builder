@@ -37,6 +37,7 @@
     },
     admin: null,
     adminUsage: null,
+    quickAdmin: { open: false, unlocked: false, pin: "", error: "", saving: false, message: "", config: null },
     adminTab: "research",
     smtpBusy: "",
     view: "cases",
@@ -4561,6 +4562,7 @@
             <span class="wordmark">kyndryl</span>
             <span class="divider"></span>
             <span class="module-name">Strategic Narrative Builder 2.0</span>
+            <button type="button" class="quick-admin-btn" data-action="open-quick-admin">Admin</button>
           </div>
           <nav class="primary-nav" aria-label="Application sections">
             ${navButton("cases", "Value Cases")}
@@ -4588,6 +4590,7 @@
           ${renderAlerts()}
           ${renderContent()}
         </main>
+        ${renderQuickAdminModal()}
       </div>
     `;
     mountGraphAnimations();
@@ -11365,6 +11368,75 @@
     `;
   }
 
+  function renderQuickAdminModal() {
+    const qa = state.quickAdmin || {};
+    if (!qa.open) return "";
+    const body = qa.unlocked ? renderQuickAdminForm(qa) : renderQuickAdminPin(qa);
+    return `
+      <div class="qa-overlay">
+        <div class="qa-modal" role="dialog" aria-modal="true" aria-label="Admin settings">
+          <div class="qa-modal-head">
+            <h2>Admin Settings</h2>
+            <button type="button" class="qa-close" data-action="close-quick-admin" aria-label="Close">&times;</button>
+          </div>
+          ${body}
+        </div>
+      </div>
+    `;
+  }
+
+  function renderQuickAdminPin(qa) {
+    return `
+      <p class="muted">Enter the admin number to manage AI provider settings.</p>
+      ${qa.error ? `<div class="qa-error">${escapeHtml(qa.error)}</div>` : ""}
+      <label class="field">
+        <span>Admin number</span>
+        <input id="qa-pin" type="password" inputmode="numeric" autocomplete="off"
+               placeholder="••••" value="${attr(qa.pin || "")}" data-qa-submit-on-enter>
+      </label>
+      <div class="qa-actions">
+        <button type="button" class="btn accent" data-action="quick-admin-unlock" ${qa.saving ? "disabled" : ""}>
+          ${qa.saving ? "Checking&hellip;" : "Unlock"}
+        </button>
+      </div>
+    `;
+  }
+
+  function renderQuickAdminForm(qa) {
+    const config = qa.config || {};
+    const models = config.openaiModels || [];
+    const currentModel = config.openaiModel || "";
+    const pplxPlaceholder = config.perplexityHasKey ? "•••••••• key saved — leave blank to keep" : "Paste Perplexity API key";
+    const openaiPlaceholder = config.openaiHasKey ? "•••••••• key saved — leave blank to keep" : "Paste OpenAI API key";
+    return `
+      ${qa.message ? `<div class="qa-success">${escapeHtml(qa.message)}</div>` : ""}
+      ${qa.error ? `<div class="qa-error">${escapeHtml(qa.error)}</div>` : ""}
+      <p class="muted">Leave a key blank to keep the existing one. Keys are stored encrypted.</p>
+      <label class="field">
+        <span>Perplexity API key</span>
+        <input id="qa-perplexity" type="password" autocomplete="off" placeholder="${attr(pplxPlaceholder)}">
+      </label>
+      <label class="field">
+        <span>OpenAI API key</span>
+        <input id="qa-openai" type="password" autocomplete="off" placeholder="${attr(openaiPlaceholder)}">
+      </label>
+      <label class="field">
+        <span>OpenAI model</span>
+        <select id="qa-model">
+          ${models.map(function (m) {
+            return `<option value="${attr(m)}" ${m === currentModel ? "selected" : ""}>${escapeHtml(m)}</option>`;
+          }).join("")}
+        </select>
+      </label>
+      <div class="qa-actions">
+        <button type="button" class="btn secondary" data-action="close-quick-admin">Close</button>
+        <button type="button" class="btn accent" data-action="quick-admin-save" ${qa.saving ? "disabled" : ""}>
+          ${qa.saving ? "Saving&hellip;" : "Save changes"}
+        </button>
+      </div>
+    `;
+  }
+
   function renderAiUsageCard(aiUsage) {
     if (!aiUsage) return "";
     const totals = aiUsage.totals || {};
@@ -12798,6 +12870,59 @@
     if (!button) return;
     const action = button.dataset.action;
     try {
+      if (action === "open-quick-admin") {
+        state.quickAdmin = { open: true, unlocked: false, pin: "", error: "", saving: false, message: "", config: null };
+        render();
+      }
+      if (action === "close-quick-admin") {
+        state.quickAdmin = { open: false, unlocked: false, pin: "", error: "", saving: false, message: "", config: null };
+        render();
+      }
+      if (action === "quick-admin-unlock") {
+        const pinEl = document.getElementById("qa-pin");
+        const pin = pinEl ? pinEl.value.trim() : "";
+        state.quickAdmin.pin = pin;
+        state.quickAdmin.saving = true;
+        state.quickAdmin.error = "";
+        render();
+        try {
+          const cfg = await api("/api/quick-admin/config", { method: "POST", body: JSON.stringify({ pin: pin }) });
+          state.quickAdmin.unlocked = true;
+          state.quickAdmin.config = cfg;
+          state.quickAdmin.error = "";
+        } catch (err) {
+          state.quickAdmin.error = "Incorrect admin number.";
+        } finally {
+          state.quickAdmin.saving = false;
+          render();
+        }
+      }
+      if (action === "quick-admin-save") {
+        const pxEl = document.getElementById("qa-perplexity");
+        const oaEl = document.getElementById("qa-openai");
+        const mdEl = document.getElementById("qa-model");
+        const payload = {
+          pin: state.quickAdmin.pin,
+          perplexityKey: pxEl ? pxEl.value.trim() : "",
+          openaiKey: oaEl ? oaEl.value.trim() : "",
+          openaiModel: mdEl ? mdEl.value : "",
+        };
+        state.quickAdmin.saving = true;
+        state.quickAdmin.error = "";
+        state.quickAdmin.message = "";
+        render();
+        try {
+          const res = await api("/api/quick-admin/save", { method: "POST", body: JSON.stringify(payload) });
+          state.quickAdmin.message = (res.updated && res.updated.length) ? ("Saved: " + res.updated.join(", ")) : "No changes to save.";
+          const cfg = await api("/api/quick-admin/config", { method: "POST", body: JSON.stringify({ pin: state.quickAdmin.pin }) });
+          state.quickAdmin.config = cfg;
+        } catch (err) {
+          state.quickAdmin.error = "Could not save. Check the admin number and try again.";
+        } finally {
+          state.quickAdmin.saving = false;
+          render();
+        }
+      }
       if (action === "synthesize-narrative") {
         const caseId = state.activeCaseId;
         if (caseId) {
