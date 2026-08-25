@@ -359,3 +359,76 @@ aws ecr delete-repository \
 - **Next steps:** Run one of the deployment scripts above to launch on AWS
 
 For questions or issues, check CloudWatch logs in the AWS Console.
+
+---
+
+## Fargate + EFS + SES (current target)
+
+`aws/ecs-task-definition.json` is the task definition this section describes.
+Substitute `${AWS_ACCOUNT_ID}`, `${AWS_REGION}`, `${REPO_NAME}`,
+`${EFS_FILE_SYSTEM_ID}`, `${EFS_ACCESS_POINT_ID}`, `${PUBLIC_HOSTNAME}` and
+`${SES_VERIFIED_SENDER}` before registering it.
+
+### Persistent storage
+
+The container writes its SQLite database and knowledge-base uploads under
+`SNB_RUNTIME_DIR`. The task definition sets that to `/mnt/snb` and mounts one
+EFS volume there, so `data/` and `storage/uploads/` both persist. Fargate's own
+filesystem is ephemeral; without this mount every restart, redeploy and scale
+event starts from an empty database.
+
+Create the access point with the container's uid/gid so the non-root `appuser`
+can write to it:
+
+```bash
+aws efs create-access-point \
+  --file-system-id "$FILE_SYSTEM_ID" \
+  --posix-user Uid=1000,Gid=1000 \
+  --root-directory 'Path=/snb,CreationInfo={OwnerUid=1000,OwnerGid=1000,Permissions=750}'
+```
+
+The EFS security group must allow NFS (2049) from the task security group, and
+the task needs `elasticfilesystem:ClientMount` / `ClientWrite` on the access
+point for `"iam": "ENABLED"` to work.
+
+SQLite over EFS is safe for this app because it runs as a single task. Do not
+scale the service above one task without moving to a networked database first —
+concurrent writers over NFS will corrupt the file.
+
+### Email (Amazon SES)
+
+Magic-link sign-in is the only way into a production deployment: the
+development bypass disables itself whenever `SNB_ENV`, `NODE_ENV` or
+`VERCEL_ENV` is `production`. With no SMTP configured the sign-in endpoint
+returns `503 SMTP email delivery is not configured.` and nobody can get in.
+
+1. Verify the sender identity (domain or address) in SES.
+2. Create SES SMTP credentials — these are *not* your AWS access keys; SES
+   generates a separate username and password.
+3. Store them in Secrets Manager as `snb/ses-smtp` with `username` and
+   `password` keys. The task definition reads them into `SNB_SMTP_USERNAME`
+   and `SNB_SMTP_PASSWORD`.
+4. While the account is in the SES sandbox, mail is only delivered to verified
+   recipients. Request production access before expecting sign-in links to
+   reach arbitrary addresses.
+
+The host follows `email-smtp.<region>.amazonaws.com` on port 587 with STARTTLS,
+which is what the task definition sets.
+
+`SNB_PUBLIC_BASE_URL` must be the externally reachable HTTPS origin, otherwise
+the emailed link points somewhere the recipient's browser cannot reach.
+
+### Secrets at rest
+
+`SNB_APP_MASTER_KEY` encrypts the stored SMTP password and AI provider API keys.
+Generate one long random value, keep it in Secrets Manager as `snb/app-master-key`,
+and do not rotate it casually — changing it makes existing stored secrets
+unreadable and they must be re-entered in Admin.
+
+### First sign-in
+
+A fresh database seeds exactly one administrator, `super.user@kyndryl.com`, and
+sign-in is restricted to addresses on the admin allowlist. Either verify that
+address in SES so its link can be delivered, or add your own address to the
+`admin_access_emails` table before the first deploy. Otherwise the deployment
+comes up healthy with no way to log in.
