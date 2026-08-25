@@ -192,5 +192,37 @@ class CombinedSourceConfidenceTests(unittest.TestCase):
         self.assertEqual(result["fieldSources"]["revenue"]["confidence"], "high")
 
 
+class TickerNormalisationTests(unittest.TestCase):
+    """Exchange-prefixed tickers must reach Yahoo as a bare symbol."""
+
+    def test_strips_exchange_prefix(self):
+        self.assertEqual(server.normalize_ticker_symbol("NASDAQ: TSLA"), "TSLA")
+        self.assertEqual(server.normalize_ticker_symbol("NASDAQ:TSLA"), "TSLA")
+        self.assertEqual(server.normalize_ticker_symbol("LON: AV"), "AV")
+
+    def test_leaves_plain_and_suffixed_symbols_alone(self):
+        # "AV.L" is a real Yahoo symbol; only the exchange prefix is noise.
+        self.assertEqual(server.normalize_ticker_symbol("AV.L"), "AV.L")
+        self.assertEqual(server.normalize_ticker_symbol("TSLA"), "TSLA")
+        self.assertEqual(server.normalize_ticker_symbol("  MSFT "), "MSFT")
+
+    def test_blank_input_is_safe(self):
+        self.assertEqual(server.normalize_ticker_symbol(""), "")
+        self.assertEqual(server.normalize_ticker_symbol(None), "")
+
+    def test_yahoo_profile_normalises_before_fetching(self):
+        seen = []
+
+        def fake_fetch(url, headers=None):
+            seen.append(url)
+            return {}
+
+        with mock.patch.object(server, "fetch_lookup_json", side_effect=fake_fetch):
+            server.yahoo_profile_for_ticker("NASDAQ: TSLA")
+        self.assertTrue(seen)
+        self.assertIn("TSLA", seen[0])
+        self.assertNotIn("NASDAQ", seen[0])
+
+
 if __name__ == "__main__":
     unittest.main()

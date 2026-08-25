@@ -6619,8 +6619,22 @@ def domain_from_url(value: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
+def normalize_ticker_symbol(value: object) -> str:
+    """Bare market symbol from a label that may carry an exchange prefix.
+
+    Lookup providers return tickers as "NASDAQ: TSLA" or "LON:AV". Yahoo's quote
+    API only accepts the bare symbol and answers an exchange-prefixed one with an
+    empty result, so the case silently loses every market figure. Suffix forms
+    like "AV.L" are real Yahoo symbols and are left alone.
+    """
+    text = str(value or "").strip()
+    if ":" in text:
+        text = text.rsplit(":", 1)[-1].strip()
+    return text
+
+
 def yahoo_fundamental_timeseries(ticker: str) -> dict:
-    symbol = str(ticker or "").strip()
+    symbol = normalize_ticker_symbol(ticker)
     if not symbol:
         return {}
     period2 = int(time.time()) + 86400
@@ -6688,7 +6702,7 @@ def yahoo_timeseries_latest(payload: dict, *keys: str) -> float | int | None:
 
 
 def yahoo_profile_for_ticker(ticker: str) -> dict:
-    symbol = str(ticker or "").strip()
+    symbol = normalize_ticker_symbol(ticker)
     if not symbol:
         return {}
     data = fetch_lookup_json(
