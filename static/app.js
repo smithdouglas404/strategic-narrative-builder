@@ -6735,7 +6735,35 @@
     const field = type === "textarea"
       ? `<textarea data-snapshot="${key}">${escapeHtml(value || "")}</textarea>`
       : `<input data-snapshot="${key}" value="${attr(value || "")}">`;
-    return `<label class="field"><span>${escapeHtml(label)}</span>${field}</label>`;
+    return `<label class="field"><span>${escapeHtml(label)}</span>${field}${provenanceChip(key)}</label>`;
+  }
+
+  function shortSource(text) {
+    const t = String(text || "");
+    if (/sec edgar|companyfacts|\bsec\b/i.test(t)) return "SEC EDGAR";
+    if (/yahoo finance/i.test(t)) return "Yahoo Finance";
+    if (/companies house/i.test(t)) return "Companies House";
+    if (/openfigi/i.test(t)) return "OpenFIGI";
+    if (/perplexity/i.test(t)) return "Perplexity";
+    if (/chatgpt|openai/i.test(t)) return "ChatGPT";
+    if (/google/i.test(t)) return "Google";
+    if (/annual report/i.test(t)) return "Annual report";
+    if (/local/i.test(t)) return "Local index";
+    if (/selected company lookup/i.test(t)) return "Company lookup";
+    return t.length > 24 ? t.slice(0, 24) + "…" : t;
+  }
+
+  function provenanceChip(key) {
+    const snap = (state.business && state.business.snapshot) || {};
+    const sources = snap.fieldSources || {};
+    const meta = sources[key];
+    if (!meta || !meta.source) return "";
+    const conf = String(meta.confidence || "medium").toLowerCase();
+    const confClass = conf === "high" ? "high" : conf === "low" ? "low" : "med";
+    const confLabel = conf === "high" ? "High" : conf === "low" ? "Low" : "Med";
+    return `<span class="prov-chip conf-${confClass}" title="Source: ${attr(meta.source)}">`
+      + `<span class="prov-dot"></span>${escapeHtml(shortSource(meta.source))}`
+      + `<span class="prov-conf">${confLabel}</span></span>`;
   }
 
   function renderFinancialTrend(business) {

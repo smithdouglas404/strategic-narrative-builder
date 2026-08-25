@@ -6906,3 +6906,46 @@ td textarea:focus {
     margin-top: 2px;
   }
 }
+
+/* Field-level provenance chips (feature 1) */
+.field .prov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #6a655d;
+  background: var(--skye);
+  border: 1px solid #d3e8e3;
+}
+.field .prov-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--digital-green);
+}
+.field .prov-conf {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--digital-green);
+}
+.field .prov-chip.conf-med .prov-dot,
+.field .prov-chip.conf-med .prov-conf {
+  color: var(--spruce);
+}
+.field .prov-chip.conf-med .prov-dot {
+  background: var(--spruce);
+}
+.field .prov-chip.conf-low .prov-dot {
+  background: var(--earth);
+}
+.field .prov-chip.conf-low .prov-conf {
+  color: var(--earth);
+}

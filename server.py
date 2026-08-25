@@ -3078,7 +3078,7 @@ def normalized_lookup_profile(profile: dict) -> dict:
     }
     if not normalized["revenue"] and normalized["annualRevenueUsd"]:
         normalized["revenue"] = display_annual_revenue_usd(normalized["annualRevenueUsd"])
-    for key in ("sourceSnippets", "financialRows", "financialHistory", "priorityInsights", "researchFirmPriorities", "transformationAgenda"):
+    for key in ("sourceSnippets", "financialRows", "financialHistory", "priorityInsights", "researchFirmPriorities", "transformationAgenda", "fieldSources"):
         if profile.get(key):
             normalized[key] = profile[key]
     return {key: value for key, value in normalized.items() if value not in (None, "", [])}
@@ -5446,6 +5446,10 @@ def profile_field_candidates(profile: dict) -> list[tuple[str, str]]:
         if isinstance(obj, dict):
             for key, value in obj.items():
                 key_text = str(key or "")
+                # Provenance metadata (and any private key) is bookkeeping, not
+                # a company data field — never treat it as a value candidate.
+                if key_text == "fieldSources" or key_text.startswith("_"):
+                    continue
                 normalized = normalized_profile_key(f"{prefix}_{key_text}" if prefix else key_text)
                 scalar = profile_scalar_text(value)
                 if normalized and scalar:
@@ -6652,6 +6656,51 @@ def source_is_authoritative_financial(source_label: str) -> bool:
     return any(marker in lowered for marker in _AUTHORITATIVE_FINANCIAL_SOURCE_MARKERS)
 
 
+def source_confidence_level(source_label: str) -> str:
+    """Rough source-quality tier used for the provenance confidence badge."""
+    lowered = str(source_label or "").lower()
+    if (
+        any(marker in lowered for marker in _AUTHORITATIVE_FINANCIAL_SOURCE_MARKERS)
+        or "companies house" in lowered
+        or "openfigi" in lowered
+    ):
+        return "high"
+    if "google" in lowered:
+        return "low"
+    return "medium"
+
+
+# Snapshot-visible fields that should carry a provenance chip in the UI.
+PROVENANCE_FIELDS = (
+    "revenue", "annualRevenueUsd", "ebitda", "ebitdaUsd", "totalAssets",
+    "totalAssetsUsd", "netProfit", "fiscalYear", "employees", "industry",
+    "primaryIndustry", "subSector", "ticker", "cik", "companyNumber", "exchange",
+    "hq", "hqCountry", "website", "domain", "description", "revenueGrowth",
+    "ebitdaMargin", "returnOnAssets",
+)
+
+
+def stamp_field_provenance(result: dict, default_source: str = "") -> dict:
+    """Backfill provenance for populated fields the merge layer did not record.
+
+    merge_profile_fields records an accurate per-field source whenever it sets a
+    value; this fills the gap for single-source results whose fields were set at
+    construction time, so every visible value can show where it came from.
+    """
+    if not isinstance(result, dict):
+        return result
+    source = default_source or str(result.get("source") or "").strip()
+    if not source:
+        return result
+    field_sources = result.setdefault("fieldSources", {})
+    if not isinstance(field_sources, dict):
+        field_sources = result["fieldSources"] = {}
+    for key in PROVENANCE_FIELDS:
+        if str(result.get(key) or "").strip() and key not in field_sources:
+            field_sources[key] = {"source": source, "confidence": source_confidence_level(source)}
+    return result
+
+
 def merge_profile_fields(target: dict, profile: dict, source_label: str = "") -> dict:
     if not profile:
         return target
@@ -6706,6 +6755,13 @@ def merge_profile_fields(target: dict, profile: dict, source_label: str = "") ->
         # source (AI/Google/local) had already populated.
         if current_is_fillable or (authoritative_financials and key in AUTHORITATIVE_FINANCIAL_FIELDS):
             target[key] = value
+            if source_label:
+                field_sources = target.setdefault("fieldSources", {})
+                if isinstance(field_sources, dict):
+                    field_sources[key] = {
+                        "source": source_label,
+                        "confidence": source_confidence_level(source_label),
+                    }
     if profile.get("sourceSnippets"):
         existing = target.setdefault("sourceSnippets", [])
         for snippet in profile["sourceSnippets"]:
@@ -7815,6 +7871,8 @@ def dedupe_and_rank_company_results(results: list[dict]) -> list[dict]:
         seen.add(item_key)
         ranked.append(item)
     ranked.sort(key=lambda item: (-int(item.get("confidence") or 0), -company_lookup_sort_score(item)[1], item.get("name", "")))
+    for item in ranked:
+        stamp_field_provenance(item)
     return ranked[:8]
 
 
@@ -10447,6 +10505,14 @@ class AppHandler(BaseHTTPRequestHandler):
         snapshot["netProfit"] = clean_value("net_profit", "netProfit")
         if lookup_profile:
             merge_profile_fields(snapshot, lookup_profile, "Selected company lookup profile")
+            # Carry the resolved lookup result's per-field provenance onto the
+            # persisted snapshot for any field the snapshot actually shows.
+            lookup_field_sources = lookup_profile.get("fieldSources")
+            if isinstance(lookup_field_sources, dict):
+                snapshot_sources = snapshot.setdefault("fieldSources", {})
+                for field_key, meta in lookup_field_sources.items():
+                    if str(snapshot.get(field_key) or "").strip():
+                        snapshot_sources[field_key] = meta
             payload["lookupProfile"] = cacheable_company_lookup_profile(lookup_profile)
             if "ChatGPT" in str(lookup_profile.get("source") or ""):
                 save_company_lookup_cache("openai", company_name, lookup_profile)
