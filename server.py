@@ -3078,7 +3078,7 @@ def normalized_lookup_profile(profile: dict) -> dict:
     }
     if not normalized["revenue"] and normalized["annualRevenueUsd"]:
         normalized["revenue"] = display_annual_revenue_usd(normalized["annualRevenueUsd"])
-    for key in ("sourceSnippets", "financialRows", "financialHistory", "priorityInsights", "researchFirmPriorities", "transformationAgenda", "fieldSources"):
+    for key in ("sourceSnippets", "financialRows", "financialHistory", "priorityInsights", "researchFirmPriorities", "transformationAgenda", "fieldSources", "fieldDisputes"):
         if profile.get(key):
             normalized[key] = profile[key]
     return {key: value for key, value in normalized.items() if value not in (None, "", [])}
@@ -5448,7 +5448,7 @@ def profile_field_candidates(profile: dict) -> list[tuple[str, str]]:
                 key_text = str(key or "")
                 # Provenance metadata (and any private key) is bookkeeping, not
                 # a company data field — never treat it as a value candidate.
-                if key_text == "fieldSources" or key_text.startswith("_"):
+                if key_text in {"fieldSources", "fieldDisputes"} or key_text.startswith("_"):
                     continue
                 normalized = normalized_profile_key(f"{prefix}_{key_text}" if prefix else key_text)
                 scalar = profile_scalar_text(value)
@@ -6680,6 +6680,65 @@ PROVENANCE_FIELDS = (
 )
 
 
+_PERCENT_FINANCIAL_FIELDS = {
+    "revenueGrowth", "ebitdaMargin", "operatingMargin", "returnOnAssets", "netMargin",
+}
+
+
+def _financial_magnitude(text: str) -> float | None:
+    """Parse a money/percentage string to a comparable number, or None."""
+    raw = str(text or "").replace(",", "").strip()
+    if not raw:
+        return None
+    match = re.search(r"(-?\d+(?:\.\d+)?)\s*(trillion|tn|t|billion|bn|b|million|mn|m|k)?", raw, re.I)
+    if not match:
+        return None
+    try:
+        amount = float(match.group(1))
+    except (TypeError, ValueError):
+        return None
+    scale = (match.group(2) or "").lower()
+    multiplier = {
+        "trillion": 1e12, "tn": 1e12, "t": 1e12,
+        "billion": 1e9, "bn": 1e9, "b": 1e9,
+        "million": 1e6, "mn": 1e6, "m": 1e6, "k": 1e3,
+    }.get(scale, 1)
+    return amount * multiplier
+
+
+def financial_values_conflict(field: str, a: str, b: str) -> bool:
+    """True when two source values for a financial field differ materially."""
+    magnitude_a = _financial_magnitude(a)
+    magnitude_b = _financial_magnitude(b)
+    if magnitude_a is None or magnitude_b is None:
+        return False
+    if field in _PERCENT_FINANCIAL_FIELDS:
+        return abs(magnitude_a - magnitude_b) > 0.5  # more than half a percentage point
+    if magnitude_a == 0:
+        return magnitude_b != 0
+    return abs(magnitude_a - magnitude_b) / abs(magnitude_a) > 0.05  # more than 5% apart
+
+
+def _record_field_dispute(target: dict, key: str, current_value: str, new_value: str, new_source: str) -> None:
+    disputes = target.setdefault("fieldDisputes", {})
+    if not isinstance(disputes, dict):
+        disputes = target["fieldDisputes"] = {}
+    entries = disputes.setdefault(key, [])
+    current_source = ""
+    field_sources = target.get("fieldSources")
+    if isinstance(field_sources, dict) and isinstance(field_sources.get(key), dict):
+        current_source = field_sources[key].get("source", "")
+
+    def add(value: str, source: str) -> None:
+        for entry in entries:
+            if entry.get("value") == value:
+                return
+        entries.append({"value": value, "source": source})
+
+    add(current_value, current_source)
+    add(new_value, new_source)
+
+
 def stamp_field_provenance(result: dict, default_source: str = "") -> dict:
     """Backfill provenance for populated fields the merge layer did not record.
 
@@ -6747,6 +6806,15 @@ def merge_profile_fields(target: dict, profile: dict, source_label: str = "") ->
         current = str(target.get(key) or "").strip()
         if not value or validation_placeholder(value) or value in {"Public company", "Registered company"}:
             continue
+        # Record when two sources give materially different financial figures,
+        # regardless of which one ultimately wins the field.
+        if (
+            source_label
+            and current
+            and key in AUTHORITATIVE_FINANCIAL_FIELDS
+            and financial_values_conflict(key, current, value)
+        ):
+            _record_field_dispute(target, key, current, value, source_label)
         current_is_fillable = (
             validation_placeholder(current) or current in {"Public company", "Registered company"}
         )
@@ -10513,6 +10581,12 @@ class AppHandler(BaseHTTPRequestHandler):
                 for field_key, meta in lookup_field_sources.items():
                     if str(snapshot.get(field_key) or "").strip():
                         snapshot_sources[field_key] = meta
+            lookup_field_disputes = lookup_profile.get("fieldDisputes")
+            if isinstance(lookup_field_disputes, dict):
+                snapshot_disputes = snapshot.setdefault("fieldDisputes", {})
+                for field_key, entries in lookup_field_disputes.items():
+                    if str(snapshot.get(field_key) or "").strip():
+                        snapshot_disputes[field_key] = entries
             payload["lookupProfile"] = cacheable_company_lookup_profile(lookup_profile)
             if "ChatGPT" in str(lookup_profile.get("source") or ""):
                 save_company_lookup_cache("openai", company_name, lookup_profile)

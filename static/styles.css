@@ -6949,3 +6949,23 @@ td textarea:focus {
 .field .prov-chip.conf-low .prov-conf {
   color: var(--earth);
 }
+
+/* Disputed-figure chip (feature 2) */
+.field .dispute-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b26a00;
+  background: #fbf1e2;
+  border: 1px solid #e9d7b6;
+}
+.field .dispute-chip .dispute-mark {
+  font-weight: 700;
+  line-height: 1;
+}

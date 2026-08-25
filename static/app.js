@@ -6735,7 +6735,20 @@
     const field = type === "textarea"
       ? `<textarea data-snapshot="${key}">${escapeHtml(value || "")}</textarea>`
       : `<input data-snapshot="${key}" value="${attr(value || "")}">`;
-    return `<label class="field"><span>${escapeHtml(label)}</span>${field}${provenanceChip(key)}</label>`;
+    return `<label class="field"><span>${escapeHtml(label)}</span>${field}${provenanceChip(key)}${disputeChip(key)}</label>`;
+  }
+
+  function disputeChip(key) {
+    const snap = (state.business && state.business.snapshot) || {};
+    const disputes = snap.fieldDisputes || {};
+    const entries = disputes[key];
+    if (!Array.isArray(entries) || entries.length < 2) return "";
+    const alts = entries.map(function (e) {
+      return `${e.value}${e.source ? " (" + shortSource(e.source) + ")" : ""}`;
+    }).join("  vs  ");
+    return `<span class="dispute-chip" title="Sources disagree: ${attr(alts)}">`
+      + `<span class="dispute-mark" aria-hidden="true">&#9888;</span>`
+      + `Disputed &middot; ${entries.length} sources differ</span>`;
   }
 
   function shortSource(text) {
