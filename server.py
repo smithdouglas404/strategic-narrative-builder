@@ -6610,9 +6610,52 @@ def yahoo_profile_for_ticker(ticker: str) -> dict:
     return {key: value for key, value in profile.items() if value}
 
 
+# Financial fields where an authoritative filing/market source (SEC, Yahoo)
+# should overwrite a value supplied by a non-authoritative source (AI lookup,
+# Google snippets, local fixtures) instead of only filling a blank. Precedence
+# is keyed off the explicit source_label the caller passes to
+# merge_profile_fields.
+AUTHORITATIVE_FINANCIAL_FIELDS = frozenset({
+    "revenue",
+    "annualRevenueUsd",
+    "ebitda",
+    "ebitdaUsd",
+    "operatingProfit",
+    "operatingProfitUsd",
+    "totalAssets",
+    "totalAssetsUsd",
+    "freeCashFlow",
+    "freeCashFlowUsd",
+    "netDebt",
+    "netDebtUsd",
+    "revenueGrowth",
+    "ebitdaMargin",
+    "returnOnAssets",
+    "enterpriseToEbitda",
+    "forecastRevenueUsd",
+    "netProfit",
+    "fiscalYear",
+})
+
+_AUTHORITATIVE_FINANCIAL_SOURCE_MARKERS = (
+    "sec edgar",
+    "sec companyfacts",
+    "sec company",
+    "companyfacts",
+    "yahoo finance",
+)
+
+
+def source_is_authoritative_financial(source_label: str) -> bool:
+    """True when a source label denotes an SEC filing or Yahoo Finance market feed."""
+    lowered = str(source_label or "").lower()
+    return any(marker in lowered for marker in _AUTHORITATIVE_FINANCIAL_SOURCE_MARKERS)
+
+
 def merge_profile_fields(target: dict, profile: dict, source_label: str = "") -> dict:
     if not profile:
         return target
+    authoritative_financials = source_is_authoritative_financial(source_label)
     for key in (
         "name",
         "legalName",
@@ -6653,12 +6696,15 @@ def merge_profile_fields(target: dict, profile: dict, source_label: str = "") ->
     ):
         value = str(profile.get(key) or "").strip()
         current = str(target.get(key) or "").strip()
-        if (
-            value
-            and not validation_placeholder(value)
-            and value not in {"Public company", "Registered company"}
-            and (validation_placeholder(current) or current in {"Public company", "Registered company"})
-        ):
+        if not value or validation_placeholder(value) or value in {"Public company", "Registered company"}:
+            continue
+        current_is_fillable = (
+            validation_placeholder(current) or current in {"Public company", "Registered company"}
+        )
+        # Fill blanks/placeholders as before; additionally let an authoritative
+        # SEC/Yahoo source overwrite a financial value that a non-authoritative
+        # source (AI/Google/local) had already populated.
+        if current_is_fillable or (authoritative_financials and key in AUTHORITATIVE_FINANCIAL_FIELDS):
             target[key] = value
     if profile.get("sourceSnippets"):
         existing = target.setdefault("sourceSnippets", [])
@@ -7738,7 +7784,10 @@ def dedupe_and_rank_company_results(results: list[dict]) -> list[dict]:
         existing = next((deduped[key] for key in keys if key in deduped), None)
         if existing is None or company_lookup_sort_score(result) > company_lookup_sort_score(existing):
             if existing:
-                merge_profile_fields(result, existing)
+                # `existing` is the donor here; pass its source so an
+                # authoritative SEC/Yahoo record wins the financial fields even
+                # when a higher-scoring AI result becomes the new base.
+                merge_profile_fields(result, existing, str(existing.get("source") or ""))
                 if existing.get("sourceSnippets"):
                     result.setdefault("sourceSnippets", [])
                     result["sourceSnippets"].extend(existing["sourceSnippets"])
@@ -7748,7 +7797,9 @@ def dedupe_and_rank_company_results(results: list[dict]) -> list[dict]:
             for key in keys:
                 deduped[key] = result
             continue
-        merge_profile_fields(existing, result)
+        # `result` is the donor here; pass its source so an authoritative
+        # SEC/Yahoo record overwrites financial fields on the retained base.
+        merge_profile_fields(existing, result, str(result.get("source") or ""))
         if result.get("sourceSnippets"):
             existing.setdefault("sourceSnippets", [])
             existing["sourceSnippets"].extend(result["sourceSnippets"])
