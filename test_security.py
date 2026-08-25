@@ -66,5 +66,29 @@ class MagicLinkHostTests(unittest.TestCase):
         self.assertIn("app.kyndryl.com", url)
 
 
+class AdminOnlySignInTests(unittest.TestCase):
+    """Sign-in is restricted to active admin_access_emails rows."""
+
+    def test_allowlisted_email_passes(self):
+        with mock.patch.object(server, "connect") as fake_connect:
+            conn = fake_connect.return_value.__enter__.return_value
+            conn.execute.return_value.fetchone.return_value = (1,)
+            self.assertTrue(server.email_is_admin_allowlisted("admin@admin.com"))
+
+    def test_unlisted_email_is_refused(self):
+        with mock.patch.object(server, "connect") as fake_connect:
+            conn = fake_connect.return_value.__enter__.return_value
+            conn.execute.return_value.fetchone.return_value = None
+            self.assertFalse(server.email_is_admin_allowlisted("random@nowhere.com"))
+
+    def test_blank_email_is_refused_without_a_query(self):
+        with mock.patch.object(server, "connect") as fake_connect:
+            self.assertFalse(server.email_is_admin_allowlisted(""))
+            fake_connect.assert_not_called()
+
+    def test_message_is_the_one_users_see(self):
+        self.assertEqual(server.ADMIN_ONLY_SIGN_IN_MESSAGE, "Only admin accounts can sign in.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1751,6 +1751,25 @@ def role_for_email(conn: sqlite3.Connection, email: str) -> str:
     return access_level if access_level in ADMIN_ROLES else "account_rep"
 
 
+def email_is_admin_allowlisted(email: str) -> bool:
+    """True when the address is an active row in admin_access_emails.
+
+    Sign-in is restricted to these accounts; every other address is refused a
+    magic link rather than being given an account_rep account on first use.
+    """
+    if not email:
+        return False
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM admin_access_emails WHERE email = ? AND active = 1",
+            (email,),
+        ).fetchone()
+    return row is not None
+
+
+ADMIN_ONLY_SIGN_IN_MESSAGE = "Only admin accounts can sign in."
+
+
 def ensure_user_for_email(conn: sqlite3.Connection, email: str) -> dict:
     role = role_for_email(conn, email)
     row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
@@ -10637,6 +10656,8 @@ class AppHandler(BaseHTTPRequestHandler):
         email = normalize_login_email(data.get("email") or "developer@example.com")
         if not email:
             return self.send_error_json(HTTPStatus.BAD_REQUEST, "A valid email is required.")
+        if not email_is_admin_allowlisted(email):
+            return self.send_error_json(HTTPStatus.FORBIDDEN, ADMIN_ONLY_SIGN_IN_MESSAGE)
         return_to = safe_return_path(data.get("return_to") or data.get("returnTo"))
         raw_token = secrets.token_urlsafe(32)
         timestamp = now_iso()
@@ -10673,6 +10694,8 @@ class AppHandler(BaseHTTPRequestHandler):
         email = normalize_login_email(data.get("email"))
         if not email:
             return self.send_error_json(HTTPStatus.BAD_REQUEST, "A valid email is required.")
+        if not email_is_admin_allowlisted(email):
+            return self.send_error_json(HTTPStatus.FORBIDDEN, ADMIN_ONLY_SIGN_IN_MESSAGE)
         return_to = safe_return_path(data.get("return_to") or data.get("returnTo"))
         timestamp = now_iso()
         rate_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
