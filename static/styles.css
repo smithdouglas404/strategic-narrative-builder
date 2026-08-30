@@ -1,4 +1,7 @@
 :root {
+  /* Inflexcvi accent (Amber 500) — used for the wordmark, replacing the
+     original tool vendor's brand red. */
+  --inflexcvi-accent: #f59e0b;
   --warm-red: #ff462d;
   --deep-forest: #042315;
   --earth: #9e9287;
@@ -80,7 +83,7 @@ button {
 }
 
 .wordmark {
-  color: var(--warm-red);
+  color: var(--inflexcvi-accent, #f59e0b);
   font-size: 27px;
   line-height: 1;
   font-weight: 500;

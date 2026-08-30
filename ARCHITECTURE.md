@@ -2,7 +2,7 @@
 
 ## Product Shape
 
-Strategic Narrative Builder 2.0 is a standalone, single-tenant web application for Kyndryl account teams. It creates persistent Value Cases for enterprise customers and starts with the Business Priorities module.
+Strategic Narrative Builder 2.0 is a standalone, single-tenant web application for account teams. It creates persistent Value Cases for enterprise customers and starts with the Business Priorities module.
 
 The initial build deliberately avoids the existing platform architecture. There is no tenant table, no shared platform dependency, and no reused UI assets. The whole application can be moved as one folder.
 
@@ -16,7 +16,7 @@ apps/strategic-narrative-builder-2/
     strategic_narrative.db   # Single-tenant SQLite database
   static/
     index.html               # Browser app shell
-    styles.css               # Kyndryl-inspired visual system
+    styles.css               # Inflexcvi-branded visual system
     app.js                   # Admin, value-case, and Business Priorities UI
   storage/
     uploads/                 # Admin knowledge-base uploads
@@ -120,12 +120,14 @@ To move the app:
 
 For a hosted VM or container, mount the folder as application storage so `data/` and `storage/uploads/` persist. For managed hosting, replace SQLite with the host database behind the same API handlers.
 
+The app deploys to Railway as a single Dockerfile-built service — see `RAILWAY_DEPLOYMENT_GUIDE.md` for the full setup (volume, environment variables, health check).
+
 ## Brand Notes
 
-The interface follows the provided Kyndryl brand standards at a practical product-UI level:
+The interface uses Inflexcvi's own accent color for the wordmark and keeps the rest of the original visual system at a practical product-UI level:
 
-- Warm Red `#FF462D` is used sparingly for emphasis.
+- Inflexcvi Amber `#F59E0B` is used for the wordmark/logo and sparingly for emphasis.
 - Deep Forest `#042315` and Dark Stone `#3D3C3C` carry hierarchy and text.
 - Cloud `#F2F1EE`, Skye `#E4F4F1`, Spruce `#29707A`, Earth `#9E9287`, and White provide balance.
-- The UI avoids gradients, excessive Warm Red, and Warm Red plus Spring Green pairings.
+- The UI avoids gradients and excessive use of the accent color.
 - Font stack prefers `TWK Everett` when installed and falls back to Arial.

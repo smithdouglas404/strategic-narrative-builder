@@ -103,7 +103,7 @@ No existing project assets, logos, or app code are reused.
 The seeded Super User is:
 
 ```text
-super.user@kyndryl.com
+super.user@inflexcvi.ai
 ```
 
 Sign in with that address, then add authorised Admin emails under `Admin > Users & Access`.

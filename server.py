@@ -62,7 +62,7 @@ C_LEVEL_DECK_DIR = RUNTIME_DIR / "output" / "c_level_decks"
 C_LEVEL_DECK_TEMPLATE_PATH = Path(
     os.getenv(
         "SNB_C_LEVEL_DECK_TEMPLATE",
-        r"C:\Users\MuneebAhsan\OneDrive - kyndryl\PROJECTS\TEMPLATE.pptx",
+        str(BASE_DIR / "TEMPLATE.pptx"),
     )
 )
 GLOBAL_LOOKUP_TIMEOUT_SECONDS = float(os.getenv("SNB_GLOBAL_LOOKUP_TIMEOUT_SECONDS", "1.5"))
@@ -264,29 +264,6 @@ COMPANY_LOOKUP_FIXTURES = [
         "netProfit": "USD 24.6B",
         "description": "Global bank and financial services group with retail, commercial, wealth, and markets businesses.",
         "source": "Local company lookup seed; validate against annual report and market data.",
-    },
-    {
-        "name": "Kyndryl Holdings Inc.",
-        "legalName": "Kyndryl Holdings Inc.",
-        "aliases": ["Kyndryl"],
-        "ticker": "KD",
-        "exchange": "NYSE",
-        "industry": "Technology services",
-        "primaryIndustry": "Technology services",
-        "subSector": "IT infrastructure and managed services",
-        "peerGroup": "it-services",
-        "hq": "New York, United States",
-        "hqCountry": "United States",
-        "employees": "72000",
-        "priorEmployees": "78000",
-        "revenue": "USD 15.1B",
-        "annualRevenueUsd": "15100000000",
-        "ebitdaUsd": "2700000000",
-        "totalAssetsUsd": "12600000000",
-        "freeCashFlowUsd": "406000000",
-        "netProfit": "USD 0.198B",
-        "description": "IT infrastructure services provider focused on mission-critical operations, cloud, data, security, and modernization.",
-        "source": "Kyndryl FY2026 Form 10-K and full-year results; validate against current market data.",
     },
     {
         "name": "Uniphar plc",
@@ -1897,8 +1874,8 @@ def generate_business_report_html(case: dict, payload: dict) -> str:
   <style>
     body {{ margin: 0; font-family: Arial, Helvetica, sans-serif; color: #1f2a24; background: #f5f3f0; }}
     main {{ max-width: 1120px; margin: 0 auto; padding: 34px; }}
-    header {{ border-bottom: 4px solid #ff462d; padding-bottom: 18px; margin-bottom: 24px; }}
-    .brand {{ color: #ff462d; font-size: 34px; font-weight: 400; letter-spacing: .2px; }}
+    header {{ border-bottom: 4px solid #f59e0b; padding-bottom: 18px; margin-bottom: 24px; }}
+    .brand {{ color: #f59e0b; font-size: 34px; font-weight: 400; letter-spacing: .2px; }}
     h1 {{ margin: 10px 0 6px; font-size: 34px; }}
     h2 {{ margin: 0 0 12px; font-size: 20px; }}
     section {{ background: #fff; border: 1px solid #ddd8d1; border-radius: 8px; padding: 22px; margin: 18px 0; }}
@@ -1919,7 +1896,7 @@ def generate_business_report_html(case: dict, payload: dict) -> str:
 <body>
   <main>
     <header>
-      <div class="brand">kyndryl</div>
+      <div class="brand">inflexcvi</div>
       <h1>{report_escape(company_name)} Business Priorities Report</h1>
       <div>Generated {report_escape(generated)} from Strategic Narrative Builder 2.0</div>
     </header>
@@ -2058,7 +2035,7 @@ def deck_headings_from_perplexity(company: str, industry: str, payload: dict, da
         {
             "role": "user",
             "content": (
-                "Create exactly seven slide heading objects for a C-level Kyndryl narrative deck. "
+                "Create exactly seven slide heading objects for a C-level narrative deck. "
                 "Each object must include kicker, line1 and line2. "
                 "The seven slides must follow: Industry View, Company View, Financial Peer Benchmark, "
                 "Financial interpretation linking to technology, Recommendations, High-level AI business case, AI roadmap. "
@@ -2251,8 +2228,8 @@ def deck_add_footer(slide, slide_no: int, company: str, slide_width, slide_heigh
     from pptx.util import Inches
     from pptx.dml.color import RGBColor
 
-    deck_add_textbox(slide, Inches(0.45), slide_height - Inches(0.38), Inches(2.0), Inches(0.18), "kyndryl", 10, "FF462D")
-    deck_add_textbox(slide, slide_width - Inches(3.1), slide_height - Inches(0.38), Inches(2.4), Inches(0.18), f"Kyndryl & {company} confidential", 7.5, "9E9287")
+    deck_add_textbox(slide, Inches(0.45), slide_height - Inches(0.38), Inches(2.0), Inches(0.18), "inflexcvi", 10, "F59E0B")
+    deck_add_textbox(slide, slide_width - Inches(3.1), slide_height - Inches(0.38), Inches(2.4), Inches(0.18), f"{company} confidential", 7.5, "9E9287")
     pipe = slide.shapes.add_shape(1, slide_width - Inches(0.62), slide_height - Inches(0.36), Inches(0.018), Inches(0.18))
     pipe.fill.solid()
     pipe.fill.fore_color.rgb = RGBColor.from_string("FF462D")
@@ -2520,7 +2497,7 @@ def deck_save_waterfall_chart(path: Path, cases: list[dict], title: str) -> Path
     x = left + len(rows) * (width + gap)
     draw.rounded_rectangle((x, top, x + width, bottom), radius=8, fill="#002313")
     draw.text((x + 8, top - 28), f"GBP {total:.0f}M", font=label_font, fill="#002313")
-    deck_draw_wrapped(draw, (x - 8, bottom + 18), "Potential Kyndryl value", small_font, "#002313", 145, max_lines=3)
+    deck_draw_wrapped(draw, (x - 8, bottom + 18), "Potential value", small_font, "#002313", 145, max_lines=3)
     img.save(path)
     return path
 
@@ -2608,7 +2585,7 @@ def generate_c_level_deck(case: dict, payload: dict) -> tuple[Path, Path | None]
     peer_chart_path = deck_save_peer_chart(chart_dir / "03_peer_benchmark.png", data.get("peerRows") or [], "Financial peer benchmark")
     ai_cases = deck_ai_use_cases(data)
     bubble_chart_path = deck_save_bubble_chart(chart_dir / "06_ai_portfolio_bubble.png", ai_cases, "AI opportunity portfolio")
-    waterfall_chart_path = deck_save_waterfall_chart(chart_dir / "06_value_waterfall.png", ai_cases, "Potential Kyndryl value to customer")
+    waterfall_chart_path = deck_save_waterfall_chart(chart_dir / "06_value_waterfall.png", ai_cases, "Potential value to customer")
     research_summary = deck_clean_text(deck_get_nested(data, "industry", "executiveSummary", default=""), "[DATA GAP: industry research summary required]", 620)
     narrative = deck_get_nested(data, "aiContext", "strategicBusinessNarrative", "paragraphs", default=[])
     narrative_text = deck_clean_text((narrative or [""])[0] if isinstance(narrative, list) and narrative else "", "[DATA GAP: strategic business narrative required]", 520)
@@ -8955,9 +8932,9 @@ def revenue_division_label_is_valid(label: str) -> bool:
 
 def extract_reportable_segment_names(text: str) -> list[str]:
     normalized = normalize_spaced_financial_table_text(text)
-    default_kyndryl = ["United States", "Japan", "Principal Markets", "Strategic Markets"]
-    if all(re.search(rf"\b{re.escape(segment)}\b", normalized, re.I) for segment in default_kyndryl):
-        return default_kyndryl
+    known_segment_set = ["United States", "Japan", "Principal Markets", "Strategic Markets"]
+    if all(re.search(rf"\b{re.escape(segment)}\b", normalized, re.I) for segment in known_segment_set):
+        return known_segment_set
     match = re.search(
         r"\breportable\s+segments(?:\s+by\s+\w+)?\s+(?:are|include|comprise)\s+([A-Z][A-Za-z0-9&/().,' -]{20,180})",
         normalized,
@@ -9042,7 +9019,7 @@ def extract_reportable_segment_revenue_rows(text: str, source_label: str, source
             {
                 "division": segment,
                 "revenueMillions": round(value, 2),
-                "currency": "USD" if "$" in evidence or re.search(r"\bKyndryl\b", normalized[:5000], re.I) else "",
+                "currency": "USD" if "$" in evidence else "",
                 "evidence": evidence,
                 "source": source_label,
                 "url": source_url,
@@ -9229,12 +9206,12 @@ def extract_service_practice_structure_rows(full_text: str, source_label: str, s
     consult = next(
         (
             sentence for sentence in sentences_from_text
-            if re.search(r"\bKyndryl Consult\b|\badvisory and implementation services\b", sentence, re.I)
+            if re.search(r"\badvisory and implementation services\b", sentence, re.I)
         ),
         "",
     )
     if consult:
-        append_row("Kyndryl Consult / advisory and implementation services", "Consulting", consult)
+        append_row("Consulting / advisory and implementation services", "Consulting", consult)
 
     return rows[:12]
 
@@ -9933,11 +9910,11 @@ def seed_defaults(conn: sqlite3.Connection) -> None:
     rep_id = "seed-account-rep"
     conn.execute(
         "INSERT OR IGNORE INTO users (id, email, role, created_at) VALUES (?, ?, ?, ?)",
-        (super_id, "super.user@kyndryl.com", "super_user", timestamp),
+        (super_id, "super.user@inflexcvi.ai", "super_user", timestamp),
     )
     conn.execute(
         "INSERT OR IGNORE INTO users (id, email, role, created_at) VALUES (?, ?, ?, ?)",
-        (rep_id, "account.rep@kyndryl.com", "account_rep", timestamp),
+        (rep_id, "account.rep@inflexcvi.ai", "account_rep", timestamp),
     )
     conn.execute(
         """
@@ -9949,7 +9926,7 @@ def seed_defaults(conn: sqlite3.Connection) -> None:
           active = 1,
           updated_at = excluded.updated_at
         """,
-        ("seed-super-user-access", "super.user@kyndryl.com", "super_user", super_id, timestamp, timestamp),
+        ("seed-super-user-access", "super.user@inflexcvi.ai", "super_user", super_id, timestamp, timestamp),
     )
     conn.execute(
         """
@@ -10370,7 +10347,7 @@ def _template_business_narrative(company, industry, revenue, growth, priorities,
 def _ai_business_narrative(company, industry, revenue, growth, priorities, citations, config) -> dict:
     source_lines = "\n".join(f"[{c['n']}] {c['label']} — {c['url']}" for c in citations) or "(no linked sources yet)"
     instruction = (
-        "You are a Kyndryl account strategist. Write a concise, defensible executive narrative for an account team. "
+        "You are an account strategist. Write a concise, defensible executive narrative for an account team. "
         "Use ONLY the facts and sources given; never invent figures or URLs. Cite claims with bracketed numbers that "
         "map to the source list. Return strict JSON of shape "
         '{"executiveSummary": str, "paragraphs": [{"text": str, "citations": [int]}]}.'
@@ -10934,7 +10911,7 @@ class AppHandler(BaseHTTPRequestHandler):
         )
 
     def handle_shared_company_lookup(self, parsed) -> None:
-        """Local integration API used by portable Kyndryl tools.
+        """Local integration API used by portable Strategic Advisor tools.
 
         The endpoint reuses the Narrative Builder lookup and persistent cache. On
         loopback it works without configuration; remote callers must provide the

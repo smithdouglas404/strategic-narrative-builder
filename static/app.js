@@ -148,30 +148,6 @@
       source: "Local company lookup seed; validate against annual report and market data.",
     },
     {
-      name: "Kyndryl Holdings Inc.",
-      legalName: "Kyndryl Holdings Inc.",
-      aliases: ["Kyndryl"],
-      ticker: "KD",
-      exchange: "NYSE",
-      industry: "Technology services",
-      primaryIndustry: "Technology services",
-      subSector: "IT infrastructure and managed services",
-      peerGroup: "it-services",
-      hq: "New York, United States",
-      hqCountry: "United States",
-      employees: "72000",
-      priorEmployees: "78000",
-      revenue: "USD 15.1B",
-      annualRevenueUsd: "15100000000",
-      ebitdaUsd: "2700000000",
-      totalAssetsUsd: "12600000000",
-      freeCashFlowUsd: "406000000",
-      netProfit: "USD 0.198B",
-      peerMetrics: { operatingMargin: "6.1", cagr3: "-3.0" },
-      description: "IT infrastructure services provider focused on mission-critical operations, cloud, data, security, and modernization.",
-      source: "Kyndryl FY2026 Form 10-K and full-year results; validate against current market data.",
-    },
-    {
       name: "Uniphar plc",
       legalName: "Uniphar plc",
       aliases: ["Uniphar", "Uniphar CDI", "UPR"],
@@ -4558,8 +4534,8 @@
     app.innerHTML = `
       <div class="app-frame">
         <header class="app-header">
-          <div class="brand-lockup" aria-label="Kyndryl">
-            <span class="wordmark">kyndryl</span>
+          <div class="brand-lockup" aria-label="Inflexcvi">
+            <span class="wordmark">inflexcvi</span>
             <span class="divider"></span>
             <span class="module-name">Strategic Narrative Builder 2.0</span>
             <button type="button" class="quick-admin-btn" data-action="open-quick-admin">Admin</button>
@@ -4644,7 +4620,7 @@
       <div class="login-screen">
         <section class="login-intro">
           <div class="brand-lockup">
-            <span class="wordmark">kyndryl</span>
+            <span class="wordmark">inflexcvi</span>
             <span class="divider"></span>
             <span class="module-name">Strategic Narrative Builder 2.0</span>
           </div>
@@ -5229,7 +5205,7 @@
         {
           title: `The AI business case should be measured as EBITDA uplift and protected value`,
           narrative: `Use the AI business case waterfall to show directional value from cost, revenue and risk initiatives. Make clear which benefits are near-term, which need validation, and which require data/platform foundations.`,
-          visual: "Potential Kyndryl Value to Customer waterfall",
+          visual: "Potential Value to Customer waterfall",
           evidence: "AI EBITDA waterfall and value tree from AI Business Value Assessment.",
         },
         {
@@ -7087,19 +7063,6 @@
         "Medios AG",
       ],
       validationBasis: "Uniphar FY2025 operating model and healthcare distribution / pharma services peer screen",
-    },
-    {
-      companyAliases: ["kyndryl", "kyndryl holdings", "kyndryl holdings inc"],
-      peerGroup: "it-services",
-      label: "IT infrastructure and technology services",
-      peerNames: [
-        "International Business Machines Corporation",
-        "Accenture plc",
-        "Tata Consultancy Services Limited",
-        "Cognizant Technology Solutions Corporation",
-        "DXC Technology Company",
-      ],
-      validationBasis: "Kyndryl FY2026 Form 10-K competition model and latest peer annual results",
     },
     {
       companyAliases: ["the very group", "the very group limited", "very group"],
@@ -9087,7 +9050,7 @@
             : "Backbase, Adobe or Salesforce for digital onboarding, servicing and next-best-action journeys.",
       ],
     };
-    return byStack[stack] || ["Kyndryl partner ecosystem to validate the most relevant vendors during discovery."];
+    return byStack[stack] || ["Our partner ecosystem to validate the most relevant vendors during discovery."];
   }
 
   function outsideInOpportunityRows(themeRows) {
@@ -9572,7 +9535,7 @@
     if (!drivers.length || drivers.some((row) => !Number.isFinite(row.benefitMidBillions))) {
       return `
         <div class="ebitda-waterfall-empty">
-          <strong>Potential Kyndryl Value To Customer</strong>
+          <strong>Potential Value To Customer</strong>
           <span>A numeric revenue baseline is required to calculate and display the benefit bridge.</span>
         </div>
       `;
@@ -9589,7 +9552,7 @@
     const totalHigh = drivers.reduce((sum, row) => sum + row.benefitHighBillions, 0);
     chartRows.push({
       branch: "Total",
-      lever: "Potential Kyndryl value to customer",
+      lever: "Potential value to customer",
       ebitdaBenefit: formatValueTreeRange(totalLow, totalHigh, base.currency),
       benefitMidBillions: cumulative,
       start: 0,
@@ -9656,9 +9619,9 @@
       <div class="ebitda-waterfall">
         <div class="ebitda-waterfall-heading">
           <div>
-            <div class="block-label">Potential Kyndryl Value To Customer</div>
+            <div class="block-label">Potential Value To Customer</div>
             <h4>Cost â†’ Revenue â†’ Risk</h4>
-            <p>Directional midpoint bridge across the Kyndryl value hypotheses. Risk bars represent EBITDA protected; overlapping benefits require validation before aggregation.</p>
+            <p>Directional midpoint bridge across the value hypotheses. Risk bars represent EBITDA protected; overlapping benefits require validation before aggregation.</p>
           </div>
           <strong>${escapeHtml(formatValueTreeRange(totalLow, totalHigh, base.currency))}</strong>
         </div>
@@ -9670,7 +9633,7 @@
         </div>
         <div class="waterfall-scroll">
           <div class="waterfall-canvas">
-            <svg class="waterfall-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Potential Kyndryl value to customer waterfall ordered by Cost, Revenue and Risk">
+            <svg class="waterfall-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Potential value to customer waterfall ordered by Cost, Revenue and Risk">
               ${gridMarkup}
               ${connectorMarkup}
               ${barMarkup}
@@ -9705,7 +9668,7 @@
           <div>
             <div class="block-label">Technology Value Tree</div>
             <h3>Revenue | Cost | Risk To EBITDA</h3>
-            <p>Client-ready Kyndryl value hypotheses, each paired with an Account Executive proposition and an ETS Strategy & Advisory entry point.</p>
+            <p>Client-ready value hypotheses, each paired with an Account Executive proposition and an ETS Strategy & Advisory entry point.</p>
           </div>
           <div class="value-tree-baseline">
             <span>Baseline</span>
@@ -11780,7 +11743,7 @@
     return `
       <section class="section">
         <div class="section-heading">
-          <div><h2>Kyndryl Knowledge Base Uploads</h2></div>
+          <div><h2>Knowledge Base Uploads</h2></div>
         </div>
         <form id="upload-form" class="upload-zone">
           <div class="grid-4">
@@ -11791,7 +11754,7 @@
             <label class="field">
               <span>Type</span>
               <select name="doc_type">
-                <option value="kyndryl_tlp_deck">Kyndryl TLP Deck</option>
+                <option value="tlp_deck">TLP Deck</option>
                 <option value="win_coach">Win Coach</option>
                 <option value="general">General</option>
               </select>

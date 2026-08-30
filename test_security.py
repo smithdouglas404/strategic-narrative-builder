@@ -52,18 +52,18 @@ class SharedApiAccessTests(unittest.TestCase):
 class MagicLinkHostTests(unittest.TestCase):
     def test_host_allowlist_overrides_spoofed_host(self):
         handler = _StubHandler(headers={"Host": "evil.example.com"})
-        with mock.patch.object(server, "ALLOWED_PUBLIC_HOSTS", ["app.kyndryl.com"]), \
+        with mock.patch.object(server, "ALLOWED_PUBLIC_HOSTS", ["app.inflexcvi.ai"]), \
              mock.patch.object(server, "smtp_runtime_config", return_value={}):
             url = server.request_base_url(handler)
-        self.assertIn("app.kyndryl.com", url)
+        self.assertIn("app.inflexcvi.ai", url)
         self.assertNotIn("evil.example.com", url)
 
     def test_host_used_when_no_allowlist(self):
-        handler = _StubHandler(headers={"Host": "app.kyndryl.com"})
+        handler = _StubHandler(headers={"Host": "app.inflexcvi.ai"})
         with mock.patch.object(server, "ALLOWED_PUBLIC_HOSTS", []), \
              mock.patch.object(server, "smtp_runtime_config", return_value={}):
             url = server.request_base_url(handler)
-        self.assertIn("app.kyndryl.com", url)
+        self.assertIn("app.inflexcvi.ai", url)
 
 
 class AdminOnlySignInTests(unittest.TestCase):
