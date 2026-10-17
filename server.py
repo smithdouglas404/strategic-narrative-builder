@@ -106,6 +106,12 @@ BACKGROUND_REFRESH_MAX_CASES = int(os.getenv("SNB_BACKGROUND_REFRESH_MAX_CASES",
 BACKGROUND_REFRESH_INITIAL_DELAY_SECONDS = float(os.getenv("SNB_BACKGROUND_REFRESH_INITIAL_DELAY_SECONDS", "20"))
 BACKGROUND_REFRESH_LOCK = threading.Lock()
 BACKGROUND_REFRESH_STARTED = False
+# Company lookup fans out to paid OpenAI/Perplexity providers, so cap how often a
+# single account (and a single source address) may trigger it.
+COMPANY_LOOKUP_RATE_LIMIT = int(os.getenv("SNB_COMPANY_LOOKUP_RATE_LIMIT", "30"))
+COMPANY_LOOKUP_RATE_WINDOW_SECONDS = float(os.getenv("SNB_COMPANY_LOOKUP_RATE_WINDOW_SECONDS", "60"))
+RATE_LIMIT_LOCK = threading.Lock()
+RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
 ALLOWED_LOOKUP_HOSTS = {
     "api.frankfurter.dev",
     "www.sec.gov",
@@ -1316,6 +1322,34 @@ def row_to_dict(row: sqlite3.Row | None) -> dict | None:
     if row is None:
         return None
     return {key: row[key] for key in row.keys()}
+
+
+def rate_limit_hit(bucket_key: str, *, limit: int | None = None, window_seconds: float | None = None) -> tuple[bool, int]:
+    """Sliding-window rate limiter.
+
+    Records one hit for ``bucket_key`` and reports whether it is allowed.
+    Returns ``(allowed, retry_after_seconds)``; ``retry_after_seconds`` is 0
+    when allowed and the whole seconds until the oldest hit ages out otherwise.
+    """
+    limit = COMPANY_LOOKUP_RATE_LIMIT if limit is None else limit
+    window = COMPANY_LOOKUP_RATE_WINDOW_SECONDS if window_seconds is None else window_seconds
+    if limit <= 0 or window <= 0:
+        return True, 0
+    now = time.monotonic()
+    cutoff = now - window
+    with RATE_LIMIT_LOCK:
+        hits = [t for t in RATE_LIMIT_BUCKETS.get(bucket_key, []) if t > cutoff]
+        if len(hits) >= limit:
+            retry_after = max(1, int(window - (now - hits[0])) + 1)
+            RATE_LIMIT_BUCKETS[bucket_key] = hits
+            return False, retry_after
+        hits.append(now)
+        RATE_LIMIT_BUCKETS[bucket_key] = hits
+        # Bound memory: drop buckets that no longer hold any live hit.
+        if len(RATE_LIMIT_BUCKETS) > 10000:
+            for key in [k for k, v in RATE_LIMIT_BUCKETS.items() if not [t for t in v if t > cutoff]]:
+                RATE_LIMIT_BUCKETS.pop(key, None)
+    return True, 0
 
 
 def list_rows(conn: sqlite3.Connection, table: str, order_by: str = "") -> list[dict]:
@@ -10390,16 +10424,18 @@ class AppHandler(BaseHTTPRequestHandler):
         message = re.sub(r"([?&]token=)[^&\s]+", r"\1[REDACTED]", message, flags=re.IGNORECASE)
         sys.stderr.write("%s - %s\n" % (self.address_string(), message))
 
-    def send_json(self, data: dict | list, status: int = 200) -> None:
+    def send_json(self, data: dict | list, status: int = 200, headers: dict | None = None) -> None:
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
+        for key, value in (headers or {}).items():
+            self.send_header(key, str(value))
         self.end_headers()
         self.wfile.write(payload)
 
-    def send_error_json(self, status: int, message: str) -> None:
-        self.send_json({"error": message, "status": status}, status)
+    def send_error_json(self, status: int, message: str, headers: dict | None = None) -> None:
+        self.send_json({"error": message, "status": status}, status, headers)
 
     def content_length(self) -> int:
         try:
@@ -10830,6 +10866,15 @@ class AppHandler(BaseHTTPRequestHandler):
         query = (parse_qs(parsed.query).get("q", [""])[0] or "").strip()
         if len(query) < 2:
             return self.send_error_json(HTTPStatus.BAD_REQUEST, "Enter at least two characters to look up a company.")
+        client_ip = str((self.client_address or ("", 0))[0] or "").strip().lower()
+        for bucket_key in (f"user:{user['id']}", f"ip:{client_ip}"):
+            allowed, retry_after = rate_limit_hit(bucket_key)
+            if not allowed:
+                return self.send_error_json(
+                    HTTPStatus.TOO_MANY_REQUESTS,
+                    f"Too many company lookups. Try again in {retry_after} seconds.",
+                    {"Retry-After": retry_after},
+                )
 
         reused_source = ""
         matches = saved_company_profiles(query)
@@ -12528,16 +12573,18 @@ class _VercelRequest(AppHandler):
     def send_response(self, status, message=None):
         self.status = int(status)
 
-    def send_json(self, data: dict | list, status: int = 200) -> None:
+    def send_json(self, data: dict | list, status: int = 200, headers: dict | None = None) -> None:
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
+        for key, value in (headers or {}).items():
+            self.send_header(key, str(value))
         self.end_headers()
         self.wfile.write(payload)
 
-    def send_error_json(self, status: int, message: str) -> None:
-        self.send_json({"error": message, "status": int(status)}, int(status))
+    def send_error_json(self, status: int, message: str, headers: dict | None = None) -> None:
+        self.send_json({"error": message, "status": int(status)}, int(status), headers)
 
     def send_header(self, keyword, value):
         self.response_headers.append((str(keyword), str(value)))
