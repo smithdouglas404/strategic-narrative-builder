@@ -3819,8 +3819,20 @@
   }
 
   async function loadCases() {
-    const data = await api("/api/value-cases");
-    state.valueCases = data.valueCases || [];
+    // The list endpoint is paginated. Walk the pages so the rest of the app can
+    // keep assuming state.valueCases holds every visible case.
+    const pageSize = 500;
+    const collected = [];
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const data = await api(`/api/value-cases?limit=${pageSize}&offset=${offset}`);
+      const page = data.valueCases || [];
+      collected.push(...page);
+      offset += page.length;
+      hasMore = Boolean(data.hasMore) && page.length > 0;
+    }
+    state.valueCases = collected;
     if (state.activeCaseId) {
       state.activeCase = state.valueCases.find((item) => item.id === state.activeCaseId) || state.activeCase;
     }
