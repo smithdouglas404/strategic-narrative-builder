@@ -106,6 +106,8 @@ BACKGROUND_REFRESH_MAX_CASES = int(os.getenv("SNB_BACKGROUND_REFRESH_MAX_CASES",
 BACKGROUND_REFRESH_INITIAL_DELAY_SECONDS = float(os.getenv("SNB_BACKGROUND_REFRESH_INITIAL_DELAY_SECONDS", "20"))
 BACKGROUND_REFRESH_LOCK = threading.Lock()
 BACKGROUND_REFRESH_STARTED = False
+VALUE_CASES_DEFAULT_LIMIT = int(os.getenv("SNB_VALUE_CASES_DEFAULT_LIMIT", "200"))
+VALUE_CASES_MAX_LIMIT = int(os.getenv("SNB_VALUE_CASES_MAX_LIMIT", "500"))
 ALLOWED_LOOKUP_HOSTS = {
     "api.frankfurter.dev",
     "www.sec.gov",
@@ -1316,6 +1318,26 @@ def row_to_dict(row: sqlite3.Row | None) -> dict | None:
     if row is None:
         return None
     return {key: row[key] for key in row.keys()}
+
+
+def parse_pagination(parsed, *, default_limit: int, max_limit: int) -> tuple[int, int]:
+    """Read ``limit``/``offset`` from a query string, clamped to sane bounds.
+
+    Absent or unparseable values fall back to the default rather than erroring,
+    so existing callers that pass no parameters keep working unchanged.
+    """
+    params = parse_qs(parsed.query)
+    try:
+        limit = int((params.get("limit", [""])[0] or "").strip())
+    except ValueError:
+        limit = default_limit
+    try:
+        offset = int((params.get("offset", [""])[0] or "").strip())
+    except ValueError:
+        offset = 0
+    limit = max(1, min(limit, max_limit))
+    offset = max(0, offset)
+    return limit, offset
 
 
 def list_rows(conn: sqlite3.Connection, table: str, order_by: str = "") -> list[dict]:
@@ -10473,7 +10495,7 @@ class AppHandler(BaseHTTPRequestHandler):
         if path == "/api/fx-rates":
             return self.handle_fx_rates()
         if path == "/api/value-cases":
-            return self.handle_list_value_cases()
+            return self.handle_list_value_cases(parsed)
         if path == "/api/company-lookup":
             return self.handle_company_lookup(parsed)
         if path == "/api/integrations/company-lookup":
@@ -10796,32 +10818,39 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
-    def handle_list_value_cases(self) -> None:
+    def handle_list_value_cases(self, parsed=None) -> None:
         user = self.require_user()
         if not user:
             return
+        parsed = parsed if parsed is not None else urlparse(self.path)
+        limit, offset = parse_pagination(
+            parsed, default_limit=VALUE_CASES_DEFAULT_LIMIT, max_limit=VALUE_CASES_MAX_LIMIT
+        )
+        owner_clause = "" if user["role"] == "super_user" else "WHERE value_cases.user_id = ?"
+        owner_params: tuple = () if user["role"] == "super_user" else (user["id"],)
+        # Example-bank rows are filtered out below, so the count has to be taken
+        # from the same filtered set rather than from a bare COUNT(*).
         with connect() as conn:
-            if user["role"] == "super_user":
-                rows = conn.execute(
-                    """
-                    SELECT value_cases.*, users.email AS owner_email
-                    FROM value_cases
-                    JOIN users ON users.id = value_cases.user_id
-                    ORDER BY value_cases.updated_at DESC
-                    """
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT value_cases.*, users.email AS owner_email
-                    FROM value_cases
-                    JOIN users ON users.id = value_cases.user_id
-                    WHERE value_cases.user_id = ?
-                    ORDER BY value_cases.updated_at DESC
-                    """,
-                    (user["id"],),
-                ).fetchall()
-        self.send_json({"valueCases": [row_to_dict(row) for row in rows if not is_example_bank_name(row["company_name"])]})
+            rows = conn.execute(
+                f"""
+                SELECT value_cases.*, users.email AS owner_email
+                FROM value_cases
+                JOIN users ON users.id = value_cases.user_id
+                {owner_clause}
+                ORDER BY value_cases.updated_at DESC
+                """,
+                owner_params,
+            ).fetchall()
+        cases = [row_to_dict(row) for row in rows if not is_example_bank_name(row["company_name"])]
+        total = len(cases)
+        page = cases[offset:offset + limit]
+        self.send_json({
+            "valueCases": page,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "hasMore": offset + len(page) < total,
+        })
 
     def handle_company_lookup(self, parsed) -> None:
         user = self.require_user()
