@@ -84,7 +84,12 @@ class HttpSmokeTests(unittest.TestCase):
     def test_health_ok(self):
         status, body = self._get("/api/health")
         self.assertEqual(status, 200)
-        self.assertTrue(json.loads(body)["ok"])
+        payload = json.loads(body)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(payload["appVersion"], "2.0")
+        self.assertIsInstance(payload["uptimeSeconds"], (int, float))
+        self.assertTrue(payload["database"]["ok"])
 
     def test_index_and_assets_serve(self):
         self.assertEqual(self._get("/")[0], 200)
