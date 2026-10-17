@@ -27,6 +27,9 @@ package-lock.json
 # OS / editor
 .DS_Store
 
+# Agent tooling scratch space
+.agents_tmp/
+
 # Replit hosting artefacts (the app deploys to AWS; these are recreated
 # locally by Replit tooling and are not part of the deployment)
 .replit
