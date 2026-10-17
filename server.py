@@ -52,6 +52,9 @@ DEV_AUTH_BYPASS_ENABLED = (
 RUNTIME_DIR = Path(
     os.getenv("SNB_RUNTIME_DIR", "/tmp/strategic-narrative-builder" if IS_VERCEL else str(BASE_DIR))
 ).expanduser()
+# Opt-in structured request logging for hosted deployments, where log lines are
+# collected and queried rather than read by a person.
+LOG_JSON_ENABLED = str(os.getenv("SNB_LOG_JSON", "")).strip().lower() in {"1", "true", "yes", "on"}
 DATA_DIR = RUNTIME_DIR / "data"
 DB_PATH = DATA_DIR / "strategic_narrative.db"
 SECRET_KEY_PATH = DATA_DIR / ".snb_secret.key"
@@ -10201,6 +10204,10 @@ def get_user_from_cookie(handler: BaseHTTPRequestHandler) -> dict | None:
         if row["role"] != expected_role:
             conn.execute("UPDATE users SET role = ? WHERE id = ?", (expected_role, row["id"]))
             row = conn.execute("SELECT * FROM users WHERE id = ?", (row["id"],)).fetchone()
+        # Recorded here rather than in require_user(): handle_me() and friends
+        # read the cookie directly, so this is the one place every authenticated
+        # request passes through.
+        handler._log_user_id = row["id"]
         return row_to_dict(row)
 
 
@@ -10385,10 +10392,37 @@ def _ai_business_narrative(company, industry, revenue, growth, priorities, citat
 class AppHandler(BaseHTTPRequestHandler):
     server_version = "StrategicNarrativeBuilder/2.0"
 
+    def handle_one_request(self) -> None:
+        self._request_started_at = time.perf_counter()
+        super().handle_one_request()
+
     def log_message(self, fmt: str, *args) -> None:
         message = fmt % args
         message = re.sub(r"([?&]token=)[^&\s]+", r"\1[REDACTED]", message, flags=re.IGNORECASE)
         sys.stderr.write("%s - %s\n" % (self.address_string(), message))
+
+    def log_request(self, code="-", size="-") -> None:
+        """Emit one JSON object per request when SNB_LOG_JSON is on.
+
+        Only the path is logged, never the query string, so one-time sign-in
+        tokens cannot leak into the log stream.
+        """
+        if not LOG_JSON_ENABLED:
+            return super().log_request(code, size)
+        started = getattr(self, "_request_started_at", None)
+        duration_ms = round((time.perf_counter() - started) * 1000, 2) if started is not None else None
+        status = code.value if isinstance(code, HTTPStatus) else code
+        try:
+            status = int(status)
+        except (TypeError, ValueError):
+            pass
+        sys.stderr.write(json.dumps({
+            "method": getattr(self, "command", None),
+            "path": urlparse(self.path).path,
+            "status": status,
+            "duration_ms": duration_ms,
+            "user_id": getattr(self, "_log_user_id", None),
+        }, ensure_ascii=False) + "\n")
 
     def send_json(self, data: dict | list, status: int = 200) -> None:
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
