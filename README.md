@@ -58,6 +58,19 @@ $env:SNB_VALUE_CASE_REFRESH_TTL_SECONDS="86400"
 $env:SNB_BACKGROUND_REFRESH_INTERVAL_SECONDS="3600"
 ```
 
+## Degraded-Health Alerts
+
+`/api/health` reports `{"ok": false, "status": "degraded"}` with a 503 when the database is unreachable. The Docker and Railway healthchecks treat that as unhealthy. Because the platform probe only reaches one replica, each instance can also alert a webhook once a fault persists:
+
+```powershell
+$env:SNB_HEALTH_ALERT_WEBHOOK_URL="https://hooks.example.com/strategic-health"
+$env:SNB_HEALTH_ALERT_THRESHOLD="3"
+$env:SNB_HEALTH_ALERT_WINDOW_SECONDS="300"
+$env:SNB_HEALTH_PROBE_URL=""
+```
+
+`SNB_HEALTH_PROBE_URL` overrides the probed endpoint; by default the instance probes its own `HOST`/`PORT`. Alerts fire once per sustained outage (after `SNB_HEALTH_ALERT_THRESHOLD` consecutive failed probes) and reset after recovery, so a database fault pages someone instead of silently serving errors.
+
 ## Magic-Link Sign-In
 
 Users sign in with a one-time email link. Admin access is controlled by the `Users & Access` register in Admin; verified emails that are not active in that register are standard users and see only their own Value Cases.

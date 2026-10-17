@@ -106,6 +106,16 @@ BACKGROUND_REFRESH_MAX_CASES = int(os.getenv("SNB_BACKGROUND_REFRESH_MAX_CASES",
 BACKGROUND_REFRESH_INITIAL_DELAY_SECONDS = float(os.getenv("SNB_BACKGROUND_REFRESH_INITIAL_DELAY_SECONDS", "20"))
 BACKGROUND_REFRESH_LOCK = threading.Lock()
 BACKGROUND_REFRESH_STARTED = False
+# The platform healthcheck polls a single replica, so a degraded database on any
+# one instance can go unnoticed. When an alert webhook is configured each
+# instance probes its own /api/health and alerts once per sustained outage.
+HEALTH_PROBE_URL = os.getenv("SNB_HEALTH_PROBE_URL", "").strip()
+HEALTH_ALERT_WEBHOOK_URL = os.getenv("SNB_HEALTH_ALERT_WEBHOOK_URL", "").strip()
+HEALTH_ALERT_THRESHOLD = max(1, int(os.getenv("SNB_HEALTH_ALERT_THRESHOLD", "3")))
+HEALTH_ALERT_WINDOW_SECONDS = float(os.getenv("SNB_HEALTH_ALERT_WINDOW_SECONDS", "300"))
+HEALTH_ALERT_TIMEOUT_SECONDS = float(os.getenv("SNB_HEALTH_ALERT_TIMEOUT_SECONDS", "5"))
+HEALTH_ALERT_LOCK = threading.Lock()
+HEALTH_ALERT_STATE: dict[str, object] = {"failures": 0, "alerted": False, "last_error": "", "last_alert_at": 0.0}
 ALLOWED_LOOKUP_HOSTS = {
     "api.frankfurter.dev",
     "www.sec.gov",
@@ -1316,6 +1326,106 @@ def row_to_dict(row: sqlite3.Row | None) -> dict | None:
     if row is None:
         return None
     return {key: row[key] for key in row.keys()}
+
+
+def probe_health(url: str, *, timeout: float | None = None) -> tuple[bool, str]:
+    """Fetch a health endpoint and report whether it is healthy.
+
+    Any 2xx that is not ``{"ok": false}`` counts as healthy, so both the
+    current status-only endpoint and a richer degraded-aware endpoint work.
+    """
+    request = Request(url, headers={"Accept": "application/json"})
+    try:
+        with urlopen(request, timeout=timeout or HEALTH_ALERT_TIMEOUT_SECONDS) as response:
+            status_code = int(getattr(response, "status", 0) or 0)
+            raw = response.read()
+    except HTTPError as exc:
+        return False, f"HTTP {exc.code}"
+    except (URLError, OSError) as exc:
+        return False, f"{exc.__class__.__name__}: {exc}"
+    if not 200 <= status_code < 300:
+        return False, f"HTTP {status_code}"
+    try:
+        payload = json.loads(raw.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError):
+        return True, ""
+    if isinstance(payload, dict) and payload.get("ok") is False:
+        return False, str(payload.get("status") or "degraded")
+    return True, ""
+
+
+def post_health_alert(url: str, message: str, *, timeout: float | None = None) -> bool:
+    """POST a plain-text alert to the configured webhook. Never raises."""
+    body = json.dumps({"text": message}).encode("utf-8")
+    request = Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urlopen(request, timeout=timeout or HEALTH_ALERT_TIMEOUT_SECONDS) as response:
+            return 200 <= int(getattr(response, "status", 0) or 0) < 300
+    except (HTTPError, URLError, OSError):
+        return False
+
+
+def default_health_probe_url() -> str:
+    """The URL an instance uses to probe its own health endpoint."""
+    if HEALTH_PROBE_URL:
+        return HEALTH_PROBE_URL
+    host = os.environ.get("HOST", "127.0.0.1").strip() or "127.0.0.1"
+    port = os.environ.get("PORT", "8787")
+    if host in {"0.0.0.0", "::", ""}:
+        host = "127.0.0.1"
+    return f"http://{host}:{port}/api/health"
+
+
+def maybe_alert_degraded_health(*, probe_url: str | None = None, webhook_url: str | None = None) -> bool:
+    """Probe the health endpoint and alert once per sustained outage.
+
+    Returns True when an alert was sent. A single failed probe never alerts:
+    the failure must persist for ``HEALTH_ALERT_THRESHOLD`` consecutive probes.
+    A healthy probe clears the counter, so a recovered instance can alert again.
+    """
+    target = webhook_url or HEALTH_ALERT_WEBHOOK_URL
+    if not target:
+        return False
+    url = probe_url or default_health_probe_url()
+    healthy, error = probe_health(url)
+    with HEALTH_ALERT_LOCK:
+        if healthy:
+            HEALTH_ALERT_STATE.update(failures=0, alerted=False, last_error="")
+            return False
+        failures = int(HEALTH_ALERT_STATE["failures"]) + 1
+        HEALTH_ALERT_STATE["failures"] = failures
+        HEALTH_ALERT_STATE["last_error"] = error
+        if failures < HEALTH_ALERT_THRESHOLD or HEALTH_ALERT_STATE["alerted"]:
+            return False
+        HEALTH_ALERT_STATE["alerted"] = True
+    message = (
+        f"Strategic Narrative Builder health degraded: {error} "
+        f"({failures} consecutive failed probes of {url})"
+    )
+    if post_health_alert(target, message):
+        with HEALTH_ALERT_LOCK:
+            HEALTH_ALERT_STATE["last_alert_at"] = time.time()
+        return True
+    # The alert did not leave the process; allow the next probe to retry.
+    with HEALTH_ALERT_LOCK:
+        HEALTH_ALERT_STATE["alerted"] = False
+    return False
+
+
+def start_health_alert_worker() -> None:
+    """Poll the health endpoint in the background so degradation raises an alert."""
+    if not HEALTH_ALERT_WEBHOOK_URL:
+        return
+
+    def poll() -> None:
+        while True:
+            time.sleep(HEALTH_ALERT_WINDOW_SECONDS)
+            try:
+                maybe_alert_degraded_health()
+            except Exception as exc:  # pragma: no cover - worker must never die
+                sys.stderr.write(f"Health alert worker failed: {exc}\n")
+
+    threading.Thread(target=poll, name="health-alert", daemon=True).start()
 
 
 def list_rows(conn: sqlite3.Connection, table: str, order_by: str = "") -> list[dict]:
@@ -12587,6 +12697,7 @@ def main() -> None:
         return
 
     start_background_refresh_worker()
+    start_health_alert_worker()
     port = int(os.environ.get("PORT", "8787"))
     host = os.environ.get("HOST", "127.0.0.1").strip() or "127.0.0.1"
     address = (host, port)

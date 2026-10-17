@@ -38,9 +38,11 @@ ENV PYTHONUNBUFFERED=1 \
 # Expose application port
 EXPOSE 8787
 
-# Health check
+# Health check. A 503 from /api/health (degraded database) raises HTTPError, and
+# an explicit `ok: false` body fails too, so Docker restarts a degraded container
+# instead of treating it as healthy.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8787/api/health').read()" || exit 1
+    CMD python3 -c "import json,urllib.request;r=urllib.request.urlopen('http://localhost:8787/api/health');raise SystemExit(0 if json.loads(r.read()).get('ok') else 1)" || exit 1
 
 # Switch to non-root user
 USER appuser
