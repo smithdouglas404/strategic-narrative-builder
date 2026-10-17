@@ -106,6 +106,10 @@ BACKGROUND_REFRESH_MAX_CASES = int(os.getenv("SNB_BACKGROUND_REFRESH_MAX_CASES",
 BACKGROUND_REFRESH_INITIAL_DELAY_SECONDS = float(os.getenv("SNB_BACKGROUND_REFRESH_INITIAL_DELAY_SECONDS", "20"))
 BACKGROUND_REFRESH_LOCK = threading.Lock()
 BACKGROUND_REFRESH_STARTED = False
+APP_NAME = "Strategic Narrative Builder 2.0"
+APP_VERSION = os.getenv("SNB_APP_VERSION", "2.0").strip() or "2.0"
+# Monotonic so the reported uptime is immune to wall-clock adjustments.
+PROCESS_STARTED_AT = time.monotonic()
 ALLOWED_LOOKUP_HOSTS = {
     "api.frankfurter.dev",
     "www.sec.gov",
@@ -1316,6 +1320,34 @@ def row_to_dict(row: sqlite3.Row | None) -> dict | None:
     if row is None:
         return None
     return {key: row[key] for key in row.keys()}
+
+
+def health_payload() -> tuple[dict, int]:
+    """Build the health response and its HTTP status.
+
+    Returns 200 while the database answers, 503 when it does not, so a
+    container orchestrator can tell "process up" from "database reachable".
+    """
+    database_ok = True
+    database_error = ""
+    try:
+        with connect() as conn:
+            conn.execute("SELECT 1").fetchone()
+    except Exception as exc:  # pragma: no cover - depends on the host filesystem
+        database_ok = False
+        database_error = str(exc)
+    payload = {
+        "ok": database_ok,
+        "status": "ok" if database_ok else "degraded",
+        "app": APP_NAME,
+        "appVersion": APP_VERSION,
+        "uptimeSeconds": round(time.monotonic() - PROCESS_STARTED_AT, 3),
+        "database": {"ok": database_ok},
+        "aiValueNavigatorUrl": AI_VALUE_NAVIGATOR_URL,
+    }
+    if database_error:
+        payload["database"]["error"] = database_error
+    return payload, (HTTPStatus.OK if database_ok else HTTPStatus.SERVICE_UNAVAILABLE)
 
 
 def list_rows(conn: sqlite3.Connection, table: str, order_by: str = "") -> list[dict]:
@@ -10465,7 +10497,8 @@ class AppHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/health":
-            return self.send_json({"ok": True, "app": "Strategic Narrative Builder 2.0", "aiValueNavigatorUrl": AI_VALUE_NAVIGATOR_URL})
+            payload, status = health_payload()
+            return self.send_json(payload, status)
         if path == "/api/auth/magic/verify":
             return self.handle_magic_link_verify(parsed)
         if path == "/api/me":
